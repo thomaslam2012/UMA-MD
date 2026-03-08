@@ -1689,9 +1689,12 @@ Only proceed to Phase 3 after the user confirms. If the user requests changes, u
 
 **Phase 4 — Determine Runtime Auth**
 
-11. Determine whether the app requires end-user signup and login — either from the user prompt or by asking the user directly.
-    - **Login required:** Implement UMA-APP signup and login in the generated code (Sections 1.2.1–1.2.6). The token from the login response (`data.token`) is used as the Bearer token for all runtime `/uma/*` calls.
-    - **No login:** Follow the warning and confirmation flow in Section 1.2. Do not embed credentials until the user explicitly confirms. If confirmed, generate code that fetches a dev-time token on load and add a security warning comment in the code.
+11. Determine whether the app requires end-user signup and login:
+    - **If the user prompt explicitly mentions login, signup, or user accounts:** Implement UMA-APP signup and login in the generated code (Sections 1.2.1–1.2.6). The token from the login response (`data.token`) is used as the Bearer token for all runtime `/uma/*` calls.
+    - **If the user prompt explicitly says no login is needed:** Follow the warning and confirmation flow in Section 1.2. Do not embed credentials until the user explicitly confirms. If confirmed, generate code that fetches a dev-time token on load and add a security warning comment in the code.
+    - **If the user prompt does not mention login or signup at all:** Always ask before proceeding:
+      > *"Does your app need users to sign up and log in? UMA-APP supports this automatically with no extra setup required. If you say no, I'll need to embed credentials directly in the code which is not secure for production use."*
+      Wait for the user's answer before continuing.
 
 ---
 

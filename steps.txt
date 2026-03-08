@@ -3,28 +3,45 @@ UMA Project Setup Steps
 
 When starting a new project that uses UMA as the backend, do the following:
 
-1. Copy UMA_AGENT_GUIDE.md      → your project root
-2. Copy uma.env.template        → your project root, rename to uma.env
-3. Open uma.env and fill in your real values:
-      UMA_DASHBOARD_HOST=
-      UMA_DASHBOARD_PORT=
-      UMA_DASHBOARD_CREDENTIALS=
-      UMA_HOST=
-      UMA_PORT=
-      UMA_APP_HOST=
-      UMA_APP_PORT=
+1. Copy these files into your project root:
 
-4. For Claude Code:
-   Copy CLAUDE.md               → your project root
-   Copy .claude/settings.json   → your project root (preserve the folder structure)
-   (This pre-approves UMA API calls so Claude Code does not ask for permission on every request)
+   UMA_AGENT_GUIDE.md          → project root
+   uma.env.template            → project root, rename to uma.env
+   CLAUDE.md                   → project root (Claude Code)
+   .claude/settings.json       → project root (Claude Code — pre-approves UMA API calls)
+   .cursor/rules/uma.mdc       → project root (Cursor — preserve the folder structure)
 
-5. For Cursor:
-   Copy .cursor/rules/uma.mdc   → your project root (preserve the folder structure)
+2. Open uma.env and verify the values are correct:
 
-That's it. The agent will automatically load the guide on every session.
+   UMA_DASHBOARD_HOST=
+   UMA_DASHBOARD_PORT=
+   UMA_DASHBOARD_CREDENTIALS=
+
+   UMA_HOST=
+   UMA_PORT=
+
+   UMA_APP_HOST=
+   UMA_APP_PORT=
+
+   # Leave these blank — the agent fills them in automatically after the first run
+   UMA_TENANT_ID=
+   UMA_APP_ID=
+
+3. Open your agent (Claude Code or Cursor) and type what you want to build.
+
+   The agent will:
+   - Read uma.env for all configuration
+   - Authenticate with UMA-Dashboard
+   - Design the data model and show it to you as tables for confirmation
+   - Create the app and schemas in UMA after you confirm
+   - Write UMA_TENANT_ID and UMA_APP_ID back into uma.env
+   - Generate the frontend code
+
+   On every future session, the agent reads UMA_APP_ID from uma.env and
+   continues working on the same app — it will not create a new one.
 
 Notes:
 - Never commit uma.env to version control. Add it to .gitignore.
-- uma.env.template is safe to commit — it contains no real credentials.
-- If you use both Claude Code and Cursor on the same project, do both steps 4 and 5.
+- uma.env.template is safe to commit only if you remove real credentials first.
+- If you use both Claude Code and Cursor on the same project, copy both
+  CLAUDE.md + .claude/settings.json and .cursor/rules/uma.mdc.
