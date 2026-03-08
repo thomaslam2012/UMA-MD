@@ -149,7 +149,20 @@ function devAuthenticate():
 
 When the AI agent creates an app via `POST /uma/apps`, the following end-user authentication endpoints are **automatically available** on the UMA-APP service. The agent does not need to create or configure them.
 
-**Use these endpoints only when the user's prompt requires signup, login, or user management.** If the app being built does not need user accounts, these endpoints can be ignored.
+**If the user's prompt requires signup, login, or user management**, implement the runtime auth flows in Sections 1.2.1–1.2.6.
+
+**If the user says the app should work without signup or login**, the generated app still needs a Bearer token to call `/uma/*` endpoints at runtime. Without an end-user authentication system in the app, the only available token is the development-time token from Section 1.1, which requires embedding the `UMA_DASHBOARD_CREDENTIALS` API key directly in the application code.
+
+Before proceeding, the agent **must** warn the user and ask for explicit confirmation:
+
+> *"Since your app has no end-user login system, the only way for the app to call UMA is to embed the developer API key credentials directly in the generated code. This is NOT secure — anyone with access to the code or browser can extract the credentials and access your UMA data.*
+>
+> *UMA-APP already supports user signup and login with no extra setup required on your part. I can implement that instead and your data will be protected.*
+>
+> *Do you want to proceed with embedded credentials (not secure), or should I implement signup and login?"*
+
+- **If user confirms embedded credentials:** Generate the app so that on load it calls `POST /uma-dashboard/auth/sessions` with the hardcoded `apiCredentials`, stores the returned `data.token`, and uses it as the Bearer token for all `/uma/*` calls. Add a visible comment in the code warning that this is insecure and should be replaced with proper login before production use.
+- **If user does not confirm (or asks for login instead):** Implement the full signup and login flow using the UMA-APP endpoints in Sections 1.2.1–1.2.6.
 
 The `tenantId` and `appId` to use in all requests below are already known to the agent at development time:
 - `tenantId` — from the dev-time auth response (`data.tenantId`)
@@ -1096,7 +1109,7 @@ Present on every field regardless of type.
 | `required` | boolean | `false` | Client-side/display hint only. The server does **not** reject null values based on this flag alone. Use this to communicate to UI generators that the field should be shown as required. |
 | `validateRequired` | boolean | `false` | Server-enforced. When `true`, the server rejects the request if this field is null or absent in `data`. Set `validateRequired: true` whenever the field must genuinely be non-null at write time. |
 | `deprecated` | boolean | `false` | Soft-delete flag. Set by server when field is omitted from a PUT. |
-| `semantic` | object | optional | Semantic metadata (see Section 6) |
+| `semantic` | object | **required** | Semantic metadata (see Section 6). Must be populated on creation. Do not leave empty. |
 
 ---
 
@@ -1497,6 +1510,56 @@ Before modifying any schema or field, an agent must:
 
 ## 7. AI Agent Workflow
 
+### 7.0 Master Build Workflow
+
+When the user gives a prompt to build any app or software, execute the following sequence in order. The sections referenced in each step provide the detailed rules.
+
+---
+
+**Phase 1 — Setup**
+
+1. Read `uma.env` from the project root (Section 1 "Before You Start"). If the file is missing or any required key is absent, stop and ask the user before proceeding.
+2. Authenticate with UMA-Dashboard (Section 1.1) → store `devToken` and `tenantId`.
+3. `GET /uma/apps` → inspect existing apps and their `semantic.intent` and `semantic.evolutionNotes`. Do not create a new app if one already exists that matches the intent.
+
+---
+
+**Phase 2 — Design the Data Model**
+
+4. Interpret the user prompt to identify entities, relationships, and field types (Section 7.2).
+5. For each entity, design its schema: choose appropriate `fieldType` for each field and plan a fully populated `semantic` block at both schema and field level (Section 7.3). Never leave `semantic` empty.
+6. Identify LINKED/RELATED dependencies and determine creation order — referenced schemas must exist before schemas that link to them.
+
+---
+
+**Phase 3 — Build the Data Model in UMA**
+
+7. `POST /uma/apps` — create the app with full `semantic`. If it already exists (`DUPLICATED_APPS`), use the existing app.
+8. `POST /uma/apps/{appId}/schemas/{formId}` — create each schema with full `semantic` on the schema and on every field. Follow the creation order from step 6.
+9. Insert test data to verify the schema works (Section 7.5).
+10. Record what was built in `semantic.evolutionNotes` at schema and app level (Section 7.8).
+
+---
+
+**Phase 4 — Determine Runtime Auth**
+
+11. Determine whether the app requires end-user signup and login — either from the user prompt or by asking the user directly.
+    - **Login required:** Implement UMA-APP signup and login in the generated code (Sections 1.2.1–1.2.6). The token from the login response (`data.token`) is used as the Bearer token for all runtime `/uma/*` calls.
+    - **No login:** Follow the warning and confirmation flow in Section 1.2. Do not embed credentials until the user explicitly confirms. If confirmed, generate code that fetches a dev-time token on load and add a security warning comment in the code.
+
+---
+
+**Phase 5 — Generate Application Code**
+
+12. Generate the frontend or application code:
+    - Embed `tenantId` and `appId` as hardcoded constants (both are known at dev-time).
+    - Wire all `/uma/*` data calls with `Authorization: Bearer <token>` using the token determined in Phase 4.
+    - Do not hardcode host/port values — read them from `uma.env` or expose them as environment config in the generated project.
+13. Implement UI or handlers for all entities: list, create, edit, delete, as appropriate for the domain.
+14. Use `POST .../records:query` for any search, filter, or paginated views (Section 7.6).
+
+---
+
 ### 7.1 Startup
 
 ```
@@ -1524,6 +1587,10 @@ When a user requests a feature:
    b. Then create the schema with LINKED/RELATED fields
 4. POST /uma/apps/{appId}/form/{formId}  (insert test data)
 ```
+
+**Always populate `semantic` on creation.** When creating an app, schema, or field, derive `intent`, `meaning`, `purpose`, `behavior`, and `evolutionNotes` from the user prompt and domain context. Do not leave `semantic` empty or omit it. Future schema evolution depends on these notes being accurate from the start. Never submit a `POST /uma/apps`, `POST /uma/apps/{appId}/schemas/{formId}`, or any field definition without a fully populated `semantic` block.
+
+---
 
 **Circular LINKED references** (Schema A links to B, Schema B links back to A):
 
