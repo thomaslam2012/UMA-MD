@@ -2,7 +2,7 @@
 
 **Audience:** AI coding agents (Claude Code, Cursor, etc.)
 **Purpose:** Operate UMA autonomously as a semantic data model layer during development.
-**Base URL:** `http://localhost:8080/uma`
+**Base URL:** `http://{UMA_HOST}:{UMA_PORT}/uma`
 
 ---
 
@@ -14,89 +14,279 @@ UMA (Universal Model API) is not a traditional CRUD database API. It is a **sema
 
 ## 1. Authentication
 
-### Obtaining a JWT Token
+UMA has two distinct authentication contexts. The AI agent must understand and implement both.
+
+### Before You Start — Resolve Configuration Values
+
+Before making any API call, the agent must read configuration from `uma.env` in the project root.
+
+**Steps:**
+1. Look for `uma.env` in the project root directory.
+2. If found, parse all key=value pairs from it.
+3. If the file does not exist or any required key is missing, stop and ask the user: *"Please provide a `uma.env` file in the project root with the required values. See the template below."*
+
+**`uma.env` format:**
 
 ```
-POST http://localhost:8080/uma-dashboard/auth/sessions
-Content-Type: application/json
+UMA_DASHBOARD_HOST=localhost
+UMA_DASHBOARD_PORT=8080
+UMA_DASHBOARD_CREDENTIALS=your-api-key-here
 
-{
-  "authType": "PASSWORD",
-  "email": "your-email@example.com",
-  "password": "your-password"
-}
+UMA_HOST=localhost
+UMA_PORT=8080
+
+UMA_APP_HOST=localhost
+UMA_APP_PORT=8082
 ```
 
-### Response Format
+| Key | Description |
+|-----|-------------|
+| `UMA_DASHBOARD_HOST` | Hostname where UMA-Dashboard is running |
+| `UMA_DASHBOARD_PORT` | Port of UMA-Dashboard |
+| `UMA_DASHBOARD_CREDENTIALS` | API key for AI agent authentication (provided by UMA admin) |
+| `UMA_HOST` | Hostname where UMA is running |
+| `UMA_PORT` | Port of UMA |
+| `UMA_APP_HOST` | Hostname where UMA-APP is running |
+| `UMA_APP_PORT` | Port of UMA-APP |
 
-```json
-{
-  "token": "<jwt-string>",
-  "expiresAt": "<ISO datetime>"
-}
-```
-
-### Using the Token
-
-Include the JWT on every UMA request:
-
-```
-Authorization: Bearer <jwt-string>
-```
-
-### Rule: Auto-Retry on 401
-
-If any UMA endpoint returns `HTTP 401`, the agent must:
-1. Re-execute the `POST /auth/sessions` call above to obtain a fresh token.
-2. Retry the original request with the new token.
-3. Do not surface the 401 to the user. It is an internal token refresh, not an error.
+Do not hardcode any of these values in generated code. Always read from `uma.env`.
 
 ---
 
-### Auth in Generated Application Code
+### 1.1 Development-Time Auth (AI Agent → UMA)
 
-When generating application code that calls UMA, the generated code is a separate running application — it must obtain and manage its own JWT independently of Claude Code.
+Used **only by the AI agent** during development to create apps, schemas, and test data. This is not for end users.
 
-**Credentials must never be hardcoded.** Always read from environment variables:
+**Endpoint:**
+
+```
+POST http://{UMA-DASHBOARD-HOST}:{UMA-DASHBOARD-PORT}/uma-dashboard/auth/sessions
+Content-Type: application/json
+```
+
+**Request body:**
+
+```json
+{
+  "authType": "API_KEY",
+  "apiCredentials": "{UMA-DASHBOARD-CREDENTIALS}"
+}
+```
+
+**Response:**
+
+```json
+{
+  "data": {
+    "userId": "usr_d2125821",
+    "tenantId": "tnt_1f8e2jur",
+    "token": "eyJ...",
+    "tokenType": "Bearer"
+  }
+}
+```
+
+**Extract and store:**
+- `data.token` — used as `Authorization: Bearer <token>` on every `/uma/*` API call.
+- `data.tenantId` — store this. It is required when generating the runtime signup UI for the app.
+
+**Environment variables (never hardcode):**
 
 | Variable | Description |
 |----------|-------------|
-| `UMA_BASE_URL` | Base URL of UMA (e.g., `http://localhost:8080/uma`) |
-| `UMA_AUTH_URL` | Auth base URL (e.g., `http://localhost:8080/uma-dashboard`) |
-| `UMA_AUTH_EMAIL` | Email credential |
-| `UMA_AUTH_PASSWORD` | Password credential |
+| `UMA_DASHBOARD_HOST` | Hostname of UMA-Dashboard service |
+| `UMA_DASHBOARD_PORT` | Port of UMA-Dashboard service |
+| `UMA_DASHBOARD_CREDENTIALS` | API key credential string |
+| `UMA_HOST` | Hostname of UMA service |
+| `UMA_PORT` | Port of UMA service |
 
-**Token management pattern to implement in generated code:**
-
-1. On startup (or before the first API call), call `POST /uma-dashboard/auth/sessions` to obtain a token.
-2. Store the token in memory.
-3. Include `Authorization: Bearer <token>` on every UMA request.
-4. On any `HTTP 401` response, re-authenticate and retry the original request once.
-
-**Pseudocode pattern:**
+**Using the token:**
 
 ```
-token = null
+Authorization: Bearer <data.token>
+```
+
+Include this header on every `http://{UMA_HOST}:{UMA_PORT}/uma/*` request.
+
+**Auto-retry on 401:**
+
+If any UMA endpoint returns `HTTP 401`, the agent must:
+1. Re-call `POST /uma-dashboard/auth/sessions` to obtain a fresh token.
+2. Retry the original request with the new token.
+3. Do not surface the 401 to the user — it is an internal token refresh.
+4. If the retry also returns `401`, stop and surface to user: *"UMA authentication failed. Check UMA_DASHBOARD_CREDENTIALS."*
+
+**Dev-time auth pseudocode:**
+
+```
+devToken = null
+tenantId = null
 
 function callUMA(method, path, body):
-    if token is null:
-        token = authenticate()
-    response = http(method, UMA_BASE_URL + path, Authorization: "Bearer " + token, body)
+    if devToken is null:
+        devToken, tenantId = devAuthenticate()
+    response = http(method, "http://" + UMA_HOST + ":" + UMA_PORT + "/uma" + path,
+                    Authorization: "Bearer " + devToken, body)
     if response.status == 401:
-        token = authenticate()
-        response = http(method, UMA_BASE_URL + path, Authorization: "Bearer " + token, body)
+        devToken, tenantId = devAuthenticate()
+        response = http(method, "http://" + UMA_HOST + ":" + UMA_PORT + "/uma" + path,
+                        Authorization: "Bearer " + devToken, body)
     return response
 
-function authenticate():
-    response = http("POST", UMA_AUTH_URL + "/auth/sessions", body={
-        "authType": "PASSWORD",
-        "email": env("UMA_AUTH_EMAIL"),
-        "password": env("UMA_AUTH_PASSWORD")
-    })
-    return response.body.token
+function devAuthenticate():
+    response = http("POST",
+        "http://" + UMA_DASHBOARD_HOST + ":" + UMA_DASHBOARD_PORT + "/uma-dashboard/auth/sessions",
+        body={
+            "authType": "API_KEY",
+            "apiCredentials": env("UMA_DASHBOARD_CREDENTIALS")
+        })
+    return response.body.data.token, response.body.data.tenantId
 ```
 
-Apply this pattern regardless of the target language or framework of the generated code.
+---
+
+### 1.2 Runtime Auth (Generated App → UMA-APP)
+
+When the AI agent creates an app via `POST /uma/apps`, the following end-user authentication endpoints are **automatically available** on the UMA-APP service. The agent does not need to create or configure them.
+
+**Use these endpoints only when the user's prompt requires signup, login, or user management.** If the app being built does not need user accounts, these endpoints can be ignored.
+
+The `tenantId` and `appId` to use in all requests below are already known to the agent at development time:
+- `tenantId` — from the dev-time auth response (`data.tenantId`)
+- `appId` — the app the agent created via `POST /uma/apps`
+
+Embed these as configuration constants in any generated code.
+
+The **login response token** (`data.token`) is the Bearer token the generated app uses to call `/uma/*` data endpoints on behalf of the logged-in user.
+
+---
+
+#### 1.2.1 Sign Up
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "password": "userpassword",
+  "firstName": "Thomas",
+  "lastName": "Lam",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+After successful signup, the server sends a verification email. The user must verify before they can log in.
+
+---
+
+#### 1.2.2 Verify Email
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users/verification-codes
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "code": "266066",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+The `code` is sent by the server to the user's email after signup. The generated UI should provide an input field for the user to enter it.
+
+---
+
+#### 1.2.3 Resend Verification Email
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users/verification-codes/resend
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+---
+
+#### 1.2.4 Password Reset Request
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/password-reset-requests
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+The server sends a reset code to the user's email. Use the code in the next step.
+
+---
+
+#### 1.2.5 Password Reset
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/password-resets
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "newPassword": "newpassword",
+  "code": "130449"
+}
+```
+
+The `code` comes from the reset email sent in step 1.2.4. The generated UI should collect email, code, and new password on the same form.
+
+---
+
+#### 1.2.6 Login
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/sessions
+Content-Type: application/json
+```
+
+```json
+{
+  "authType": "PASSWORD",
+  "email": "user@example.com",
+  "password": "userpassword",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+**Response:**
+
+```json
+{
+  "data": {
+    "userId": "usr_d78d835a",
+    "token": "eyJ...",
+    "tokenType": "Bearer",
+    "tenantId": "tnt_1f8e2jur"
+  }
+}
+```
+
+Store `data.token` as the session token. Include it as `Authorization: Bearer <data.token>` on every subsequent `/uma/*` data call made on behalf of this user. On `HTTP 401`, prompt the user to log in again.
 
 ---
 
@@ -854,9 +1044,9 @@ If `POST /uma-dashboard/auth/sessions` itself returns an error:
 
 | HTTP Status | Cause | Recovery |
 |-------------|-------|----------|
-| `401` / `403` | Wrong credentials | Stop. Surface to user: *"Authentication failed. Check UMA_AUTH_EMAIL and UMA_AUTH_PASSWORD environment variables."* Do not retry with the same credentials. |
-| `404` | Wrong auth URL | Stop. Surface to user: *"Auth endpoint not found. Check UMA_AUTH_URL."* |
-| `5xx` | Auth server down | Wait 2 seconds and retry up to 3 times. If still failing, surface to user: *"UMA auth server is unavailable."* |
+| `401` / `403` | Wrong credentials | Stop. Surface to user: *"Authentication failed. Check UMA_DASHBOARD_CREDENTIALS environment variable."* Do not retry with the same credentials. |
+| `404` | Wrong auth URL | Stop. Surface to user: *"Auth endpoint not found. Check UMA_DASHBOARD_HOST and UMA_DASHBOARD_PORT."* |
+| `5xx` | Auth server down | Wait 2 seconds and retry up to 3 times. If still failing, surface to user: *"UMA Dashboard auth server is unavailable."* |
 
 ### Retry Limits
 
