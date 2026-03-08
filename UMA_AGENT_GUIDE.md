@@ -445,7 +445,7 @@ Data records stored for a given schema. Each record has system fields plus a `da
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `includeDeprecated` | boolean | `false` | Include soft-deleted records |
+| `includeDeprecated` | boolean | `false` | When `true`, deprecated schema fields are included in the `data` object of each record. Has no effect on which records are returned — FormData records are never soft-deleted. |
 | `page` | integer | `0` | Zero-based page index |
 | `pageSize` | integer | `10` | Number of records per page |
 
@@ -461,7 +461,6 @@ Data records stored for a given schema. Each record has system fields plus a `da
       "version": 1,
       "createdAt": "ISO datetime string",
       "updatedAt": "ISO datetime string",
-      "deprecated": false,
       "data": {
         "fieldId": "value"
       }
@@ -483,6 +482,21 @@ Data records stored for a given schema. Each record has system fields plus a `da
 | `pageSize` | integer | Requested page size |
 
 **Agent use:** Use `totalCount` and `pageSize` to determine if additional pages exist (`totalCount > (page + 1) * pageSize`). Iterate pages to retrieve all records when needed.
+
+**Pagination pseudocode:**
+
+```
+page = 0
+pageSize = 50
+allRecords = []
+
+loop:
+    response = GET /uma/apps/{appId}/form/{formId}?page={page}&pageSize={pageSize}
+    allRecords += response.items
+    if (page + 1) * pageSize >= response.totalCount:
+        break
+    page += 1
+```
 
 ---
 
@@ -514,7 +528,16 @@ Data records stored for a given schema. Each record has system fields plus a `da
 **Notes:**
 - `appId` and `formId` are inferred from the URL path; omit from body.
 - SEQUENCE and UNIQUE field values are auto-generated server-side; do not include them in `data`.
-- LINKED fields require an object structure (see LINKED field type in Section 5).
+- **LINKED fields:** provide the ObjectId string of the referenced record (not an object). If `allowMultiple` is `true`, provide an array of ObjectId strings.
+  ```json
+  { "data": { "customerId": "64a1b2c3d4e5f6a7b8c9d0e1" } }
+  { "data": { "tagIds": ["64a1b2c3d4e5f6a7b8c9d0e1", "64a1b2c3d4e5f6a7b8c9d0e2"] } }
+  ```
+- **EMBED fields:** provide an object (or array of objects if `allowMultiple` is `true`) matching the `embeddedFormSchema.fields` structure.
+  ```json
+  { "data": { "address": { "street": "123 Main St", "city": "Springfield" } } }
+  { "data": { "addresses": [{ "street": "123 Main St", "city": "Springfield" }] } }
+  ```
 
 **Response:** `HTTP 201` with the created record object.
 
@@ -546,7 +569,7 @@ Data records stored for a given schema. Each record has system fields plus a `da
 
 #### `DELETE /uma/apps/{appId}/form/{formId}/records/{id}`
 
-**Purpose:** Soft-delete a single record.
+**Purpose:** Permanently delete (hard delete) a single record. This cannot be undone.
 
 **Response:** `HTTP 204 No Content`
 
@@ -554,7 +577,7 @@ Data records stored for a given schema. Each record has system fields plus a `da
 
 #### `DELETE /uma/apps/{appId}/form/{formId}/records`
 
-**Purpose:** Soft-delete multiple records by ID.
+**Purpose:** Permanently delete (hard delete) multiple records by ID. This cannot be undone.
 
 **Request Body:**
 
@@ -576,7 +599,7 @@ Data records stored for a given schema. Each record has system fields plus a `da
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `includeDeprecated` | boolean | `false` | Include soft-deleted records |
+| `includeDeprecated` | boolean | `false` | When `true`, deprecated schema fields are included in the `data` object of each returned record. Has no effect on which records are returned. |
 
 **Request Body:**
 
@@ -657,6 +680,22 @@ Data records stored for a given schema. Each record has system fields plus a `da
 
 **Agent use:** Use `totalCount` and `pageSize` to determine if additional pages exist (`totalCount > (page + 1) * pageSize`). Iterate pages to retrieve all matching records.
 
+**Pagination pseudocode:**
+
+```
+page = 0
+pageSize = 50
+allRecords = []
+
+loop:
+    response = POST /uma/apps/{appId}/form/{formId}/records:query
+        body: { ..., "page": page, "pageSize": pageSize }
+    allRecords += response.items
+    if (page + 1) * pageSize >= response.totalCount:
+        break
+    page += 1
+```
+
 ---
 
 **Aggregation request** — include `aggregation` in the body. Pagination parameters are ignored.
@@ -727,7 +766,7 @@ All errors return a consistent body shape:
 | 400 | `REQUIRED_FIELD_MISSING` | Same as above, different context | Add the missing field. |
 | 400 | `APP_NOT_EXIST` | `appId` not found | Create the app first, then retry. |
 | 400 | `SCHEMA_NOT_EXIST` | Schema not found | Create the schema first, then retry. |
-| 400 | `FORM_NOT_EXIST` | Form data collection not found | Ensure schema exists and data has been inserted. |
+| 400 | `FORM_NOT_EXIST` | No records exist yet for this `formId` | The form data collection is created on the first `POST`. Insert at least one record via `POST /uma/apps/{appId}/form/{formId}`, then retry the query or GET. |
 | 400 | `FIELD_TYPE_CHANGED_NOT_ALLOWED` | Attempted to change `fieldType` of an existing field | **Field types are immutable.** Restore the original type, or deprecate the field and create a new one with a different `fieldId`. |
 | 400 | `FIELD_NOT_FOUND_IN_SCHEMA` | `fieldId` not found in schema | Fetch the schema to get valid field IDs. |
 | 400 | `FIELD_IS_DEPRECATED` | Field is deprecated | Restore the field with `/restore` or use a different `fieldId`. |
@@ -746,15 +785,47 @@ All errors return a consistent body shape:
 | 400 | `INVALID_JSON` | Malformed JSON | Fix the JSON syntax. Response includes line/column of the error. |
 | 400 | `INVALID_FORMAT` | Value does not match expected format | Check field type format rules in Section 5. |
 | 400 | `FORM_VALIDATE_FAIL` | Field value failed validation | Check the `fieldId` in details and correct the value. |
-| 400 | `SINGLE_VALUE_ONLY` | Multiple values sent to a non-`allowMultiple` field | Send a single value, not an array. |
+| 400 | `SINGLE_VALUE_ONLY` | Array sent to a LINKED or EMBED field that has `allowMultiple: false` | Send a single ObjectId string (LINKED) or single object (EMBED), not an array. Note: scalar types (TEXT, NUMERIC, etc.) do not enforce `allowMultiple` at runtime — this error only occurs for LINKED and EMBED fields. |
 | 400 | `FORM_DATA_EMPTY` | Record `data` is null or empty | Provide at least one field in `data`. |
-| 400 | `LINKED_RECORD_NOT_FOUND` | Referenced record ID does not exist | Verify the linked record ID is valid. |
+| 400 | `LINKED_RECORD_NOT_FOUND` | Referenced record ID does not exist in the target form | Query the referenced form (`GET /uma/apps/{appId}/form/{refFormId}` or `POST .../records:query`) to find valid record IDs, then retry with a correct ID. |
 | 400 | `INVALID_OBJECT_ID` | `id` is not a valid 24-char hex string | ObjectId must be exactly 24 hexadecimal characters (0–9, a–f). |
 | 400 | `VALIDATION_FAILED` | A request field failed Bean Validation (e.g. blank path variable or DTO field) | Read `details.violations` — each entry has `field` and `message`. Fix the listed fields and retry. |
 | 400 | `INVALID_ARGUMENT` | An illegal argument was passed internally | Read `message` for details and correct the request. |
 | 404 | `NOT_FOUND` | Record not found by ID | The ID does not exist or was deleted. Fetch the list to find valid IDs. |
-| 500 | `INTERNAL_ERROR` | Unexpected server error | Do not retry automatically. |
+| 500 | `INTERNAL_ERROR` | Unexpected server error | Do not retry automatically. Stop the current operation and surface the error to the user with the full error `message`. Ask the user to check server logs. |
 | 401 | _(no code)_ | JWT missing or expired | Obtain a new token and retry (see Section 1). |
+| 400 | `SCHEMA_MONEY_ERROR` | MONEY field definition is invalid | Check: `currencyCode` is one of `USD`, `EUR`, `JPY`, `GBP`, `AUD`; `fractionDigits` is 0–6. |
+| 400 | `SCHEMA_DATE_ERROR` | DATE field `datePattern` value is invalid | Use a valid `datePattern` value from Section 5.4. |
+| 400 | `SCHEMA_DATE_TIME_ERROR` | DATE_TIME field `dateTimePattern` value is invalid | Use a valid `dateTimePattern` value from Section 5.5. |
+| 400 | `SCHEMA_TIME_ERROR` | TIME field `timePattern` value is invalid | Use a valid `timePattern` value from Section 5.6. |
+| 400 | `SCHEMA_FIELD_TYPE_ERROR` | Field definition does not match the declared `fieldType` | Read `message` to identify the mismatched attribute and correct it. |
+| 400 | `CREATE_APP_FAILED` | App creation failed (server-side) | Read `message`. Check for duplicate `appId` or invalid body. Retry once. If it persists, surface to user. |
+| 400 | `UPDATE_FAILED` | Update operation failed (server-side) | Fetch the current resource to confirm it exists and is not deprecated, then retry once. |
+| 400 | `DELETE_FILED_FAILED` | Field deletion failed | Confirm the `fieldId` exists in the schema using `GET /schemas/{formId}`. Retry once. |
+| 400 | `DELETE_APP_FAILED` | App deletion failed | Confirm the app exists and is not already deprecated. Retry once. |
+| 400 | `DELETE_FORM_SCHEMA_FAILED` | Schema deletion failed | Confirm the schema exists and is not already deprecated. Retry once. |
+| 400 | `DELETE_FORM_DATA_FAILED` | Form data record deletion failed | Confirm the record ID exists using `GET /form/{formId}/records/{id}`. Retry once. |
+| 400 | `RESTORE_FAILED` | Restore operation failed | Confirm the resource is currently deprecated before calling restore. Retry once. |
+| 400 | `MISSING_APPS` | No apps found for the request | Create an app first via `POST /uma/apps`. |
+| 400 | `APPID_IS_NOT_EXIST` | `appId` does not exist | Call `GET /uma/apps` to list valid app IDs. Create the app if needed. |
+| 400 | `APP_USER_CONFIG_MISSING` | App user configuration is missing | The app exists but user access configuration is incomplete. Check with UMA-Dashboard admin or re-create the app. |
+
+### Auth Failure Recovery
+
+If `POST /uma-dashboard/auth/sessions` itself returns an error:
+
+| HTTP Status | Cause | Recovery |
+|-------------|-------|----------|
+| `401` / `403` | Wrong credentials | Stop. Surface to user: *"Authentication failed. Check UMA_AUTH_EMAIL and UMA_AUTH_PASSWORD environment variables."* Do not retry with the same credentials. |
+| `404` | Wrong auth URL | Stop. Surface to user: *"Auth endpoint not found. Check UMA_AUTH_URL."* |
+| `5xx` | Auth server down | Wait 2 seconds and retry up to 3 times. If still failing, surface to user: *"UMA auth server is unavailable."* |
+
+### Retry Limits
+
+- **Token refresh on 401:** Retry the original request exactly once after re-authenticating. If the retry also returns `401`, stop and surface the error to the user.
+- **Recoverable errors (e.g., version conflict, deprecated resource):** Retry the original operation at most **3 times** after applying the fix. If still failing after 3 retries, stop and surface to user.
+- **`5xx` server errors (except `INTERNAL_ERROR`):** Retry up to 3 times with 1-second delays. If still failing, surface to user.
+- **`INTERNAL_ERROR`:** Do not retry. Surface immediately.
 
 ---
 
@@ -793,7 +864,7 @@ Present on every field regardless of type.
 | `fieldId` | string | required | Unique identifier within the schema. **Immutable after creation.** |
 | `fieldType` | string | required | Field type (see Section 4). **Immutable after creation.** |
 | `fieldDisplays` | object | optional | Display labels keyed by language code (e.g., `{ "EN": "Full Name" }`) |
-| `allowMultiple` | boolean | `false` | Whether the field accepts an array of values |
+| `allowMultiple` | boolean | `false` | For **LINKED** and **EMBED** fields: enforced at runtime — sending an array when `false` returns `SINGLE_VALUE_ONLY`. For all other types (TEXT, NUMERIC, etc.): metadata only — the server stores whatever value is passed; `allowMultiple` is not validated. |
 | `required` | boolean | `false` | Whether the field is structurally required |
 | `validateRequired` | boolean | `false` | Whether the server validates the value is non-null on save |
 | `deprecated` | boolean | `false` | Soft-delete flag. Set by server when field is omitted from a PUT. |
@@ -961,7 +1032,19 @@ Auto-increments on each insert. Value is **generated server-side — do not incl
 | `separator` | string | `"-"` | Separator between prefix and number |
 | `length` | integer | `10` | Total length of generated string. `length - prefix.length - separator.length` must be > 0. |
 
-Output example: `"ORD-0000001"`
+**Output construction formula:**
+
+```
+generated = prefix + separator + zero_pad(counter, length - prefix.length - separator.length)
+```
+
+Example with `prefix="ORD"`, `separator="-"`, `length=10`:
+- Number padding width = 10 - 3 - 1 = 6 digits
+- Counter 1 → `"ORD-000001"`
+- Counter 42 → `"ORD-000042"`
+- Counter 999999 → `"ORD-999999"`
+
+Output example: `"ORD-000001"`
 
 **Filtering:** Use the formatted string value in filter conditions. The server automatically converts it to the stored numeric value before querying.
 
@@ -1036,6 +1119,20 @@ References records in another form. Stores a snapshot or live reference.
 | `unique` | boolean | `false` | Whether each linked record reference must be unique |
 | `allowMultiple` | boolean | `false` | Whether multiple records can be linked |
 
+**Form data input format for LINKED fields:**
+
+When creating or updating a record, provide the referenced record's ObjectId string (not an object). If `allowMultiple: true`, provide an array of ObjectId strings.
+
+```json
+// allowMultiple: false — single reference
+{ "data": { "customerId": "64a1b2c3d4e5f6a7b8c9d0e1" } }
+
+// allowMultiple: true — multiple references
+{ "data": { "tagIds": ["64a1b2c3d4e5f6a7b8c9d0e1", "64a1b2c3d4e5f6a7b8c9d0e2"] } }
+```
+
+The server resolves the referenced record and returns its data in the response according to `dataMode` and `fieldMode`.
+
 ---
 
 ### 5.15 RELATED
@@ -1078,6 +1175,22 @@ Embeds an inline sub-schema within the field. The embedded schema follows all th
 | Attribute | Type | Notes |
 |-----------|------|-------|
 | `embeddedFormSchema` | schema object | **required**. Full inline schema with a `fields` map. Must not be null. |
+
+**Form data input format for EMBED fields:**
+
+When creating or updating a record, provide an object whose keys match the `embeddedFormSchema.fields` map. If `allowMultiple: true`, provide an array of such objects.
+
+```json
+// allowMultiple: false — single embedded object
+{ "data": { "address": { "street": "123 Main St", "city": "Springfield" } } }
+
+// allowMultiple: true — array of embedded objects
+{ "data": { "addresses": [
+    { "street": "123 Main St", "city": "Springfield" },
+    { "street": "456 Oak Ave", "city": "Shelbyville" }
+  ]
+} }
+```
 
 ---
 
@@ -1123,6 +1236,8 @@ Before modifying any schema or field, an agent must:
 2. **Read `semantic.evolutionNotes`** at both schema and field levels.
 3. **Check `semantic.constraints`** to understand enforcement intent.
 4. **Read `semantic.behavior`** to understand the lifecycle.
+
+**If `evolutionNotes` is empty or absent:** treat the schema/field as having no recorded restrictions. Safe operations (adding new fields, updating display names) may proceed without confirmation. For destructive operations (deprecating a field, changing LINKED `dataMode`), still prompt the user briefly: *"No evolution notes found for [field/schema]. Confirm it is safe to [describe change]?"*
 
 **If a requested change would violate the recorded semantic intent:**
 
