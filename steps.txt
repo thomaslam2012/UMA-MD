@@ -1,0 +1,28 @@
+UMA Project Setup Steps
+========================
+
+When starting a new project that uses UMA as the backend, do the following:
+
+1. Copy UMA_AGENT_GUIDE.md      → your project root
+2. Copy uma.env.template        → your project root, rename to uma.env
+3. Open uma.env and fill in your real values:
+      UMA_DASHBOARD_HOST=
+      UMA_DASHBOARD_PORT=
+      UMA_DASHBOARD_CREDENTIALS=
+      UMA_HOST=
+      UMA_PORT=
+      UMA_APP_HOST=
+      UMA_APP_PORT=
+
+4. For Claude Code:
+   Copy CLAUDE.md               → your project root
+
+5. For Cursor:
+   Copy .cursor/rules/uma.mdc   → your project root (preserve the folder structure)
+
+That's it. The agent will automatically load the guide on every session.
+
+Notes:
+- Never commit uma.env to version control. Add it to .gitignore.
+- uma.env.template is safe to commit — it contains no real credentials.
+- If you use both Claude Code and Cursor on the same project, do both steps 4 and 5.
