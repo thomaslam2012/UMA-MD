@@ -6,6 +6,63 @@
 
 ---
 
+## Table of Contents
+
+- [What UMA Is](#what-uma-is)
+- [1. Authentication](#1-authentication)
+  - [Before You Start — Resolve Configuration Values](#before-you-start--resolve-configuration-values)
+  - [1.1 Development-Time Auth](#11-development-time-auth-ai-agent--uma)
+  - [1.2 Runtime Auth](#12-runtime-auth-generated-app--uma-app)
+    - [1.2.1 Sign Up](#121-sign-up)
+    - [1.2.2 Verify Email](#122-verify-email)
+    - [1.2.3 Resend Verification Email](#123-resend-verification-email)
+    - [1.2.4 Password Reset Request](#124-password-reset-request)
+    - [1.2.5 Password Reset](#125-password-reset)
+    - [1.2.6 Login](#126-login)
+- [2. API Endpoints](#2-api-endpoints)
+  - [2.1 Apps](#21-apps--umaapps)
+  - [2.2 Schemas](#22-schemas--umaappsappidschemas)
+  - [2.3 Form Data](#23-form-data--umaappsappidformformid)
+- [3. Error Handling](#3-error-handling)
+  - [Error Code Reference and Agent Recovery](#error-code-reference-and-agent-recovery)
+  - [Auth Failure Recovery](#auth-failure-recovery)
+  - [Retry Limits](#retry-limits)
+- [4. Field Types](#4-field-types)
+- [5. Field Attributes](#5-field-attributes)
+  - [5.1 Base Attributes](#51-base-attributes-all-field-types)
+  - [5.2 TEXT](#52-text)
+  - [5.3 NUMERIC](#53-numeric)
+  - [5.4 DATE](#54-date)
+  - [5.5 DATE_TIME](#55-date_time)
+  - [5.6 TIME](#56-time)
+  - [5.7 BOOLEAN](#57-boolean)
+  - [5.8 EMAIL](#58-email)
+  - [5.9 URL](#59-url)
+  - [5.10 FILE](#510-file)
+  - [5.11 MONEY](#511-money)
+  - [5.12 SEQUENCE](#512-sequence)
+  - [5.13 UNIQUE](#513-unique)
+  - [5.14 LINKED](#514-linked)
+  - [5.15 RELATED](#515-related)
+  - [5.16 EMBED](#516-embed)
+- [6. Semantic Metadata](#6-semantic-metadata)
+  - [6.1 The semantic Object](#61-the-semantic-object)
+  - [6.2 Attribute Definitions](#62-attribute-definitions)
+  - [6.3 Semantic-Driven Evolution Rules](#63-semantic-driven-evolution-rules)
+- [7. AI Agent Workflow](#7-ai-agent-workflow)
+  - [7.0 Master Build Workflow](#70-master-build-workflow)
+  - [7.1 Startup](#71-startup)
+  - [7.2 Interpreting a User Prompt](#72-interpreting-a-user-prompt)
+  - [7.3 Creating a New Data Model](#73-creating-a-new-data-model)
+  - [7.4 Evolving an Existing Schema](#74-evolving-an-existing-schema)
+  - [7.5 Inserting Test Data](#75-inserting-test-data)
+  - [7.6 Querying Data](#76-querying-data)
+  - [7.7 Automatic Error Recovery](#77-automatic-error-recovery)
+  - [7.8 Semantic Integrity Rule](#78-semantic-integrity-rule)
+- [Appendix: Immutability Rules](#appendix-immutability-rules)
+
+---
+
 ## What UMA Is
 
 UMA (Universal Model API) is not a traditional CRUD database API. It is a **semantic schema evolution engine** designed to be manipulated by AI agents. Every entity in UMA carries structured semantic metadata that preserves intent across schema changes. An AI agent should treat UMA as the authoritative source of truth about what a data model means, not just what it contains.
