@@ -1611,7 +1611,24 @@ When the user gives a prompt to build any app or software, execute the following
 12. Generate the frontend or application code:
     - Embed `tenantId` and `appId` as hardcoded constants (both are known at dev-time).
     - Wire all `/uma/*` data calls with `Authorization: Bearer <token>` using the token determined in Phase 4.
-    - Do not hardcode host/port values — read them from `uma.env` or expose them as environment config in the generated project.
+    - **Do not hardcode host/port values in the generated code.** Browser-based apps (React, Vue, etc.) cannot read `uma.env` directly. Instead, generate a `.env` file in the project root using the values from `uma.env`:
+      - For **Vite** projects: use `VITE_` prefix
+        ```
+        VITE_UMA_HOST=<UMA_HOST>
+        VITE_UMA_PORT=<UMA_PORT>
+        VITE_UMA_APP_HOST=<UMA_APP_HOST>
+        VITE_UMA_APP_PORT=<UMA_APP_PORT>
+        ```
+        Access in code as `import.meta.env.VITE_UMA_HOST`
+      - For **Create React App** projects: use `REACT_APP_` prefix
+        ```
+        REACT_APP_UMA_HOST=<UMA_HOST>
+        REACT_APP_UMA_PORT=<UMA_PORT>
+        REACT_APP_UMA_APP_HOST=<UMA_APP_HOST>
+        REACT_APP_UMA_APP_PORT=<UMA_APP_PORT>
+        ```
+        Access in code as `process.env.REACT_APP_UMA_HOST`
+    - Add the generated `.env` to `.gitignore`. It contains the same values as `uma.env` and should not be committed.
 13. Implement UI or handlers for all entities: list, create, edit, delete, as appropriate for the domain.
 14. Use `POST .../records:query` for any search, filter, or paginated views (Section 7.6).
 
@@ -1620,9 +1637,9 @@ When the user gives a prompt to build any app or software, execute the following
 ### 7.1 Startup
 
 ```
-1. POST /auth/sessions → obtain JWT
-2. GET /uma/apps → inspect existing apps and their semantics
-3. GET /uma/apps/{appId}/schemas → inspect existing schemas
+1. POST http://{UMA_DASHBOARD_HOST}:{UMA_DASHBOARD_PORT}/uma-dashboard/auth/sessions → obtain JWT (see Section 1.1)
+2. GET http://{UMA_HOST}:{UMA_PORT}/uma/apps → inspect existing apps and their semantics
+3. GET http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/schemas → inspect existing schemas
 ```
 
 ### 7.2 Interpreting a User Prompt
