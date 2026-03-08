@@ -94,6 +94,10 @@ UMA_PORT=8080
 
 UMA_APP_HOST=localhost
 UMA_APP_PORT=8082
+
+# Written by agent after app is created — do not edit manually
+UMA_TENANT_ID=
+UMA_APP_ID=
 ```
 
 | Key | Description |
@@ -105,6 +109,8 @@ UMA_APP_PORT=8082
 | `UMA_PORT` | Port of UMA |
 | `UMA_APP_HOST` | Hostname where UMA-APP is running |
 | `UMA_APP_PORT` | Port of UMA-APP |
+| `UMA_TENANT_ID` | Written by agent after dev-time auth. Do not set manually. |
+| `UMA_APP_ID` | Written by agent after app is created. Do not set manually. |
 
 Do not hardcode any of these values in generated code. Always read from `uma.env`.
 
@@ -1625,7 +1631,9 @@ When the user gives a prompt to build any app or software, execute the following
 
 1. Read `uma.env` from the project root (Section 1 "Before You Start"). If the file is missing or any required key is absent, stop and ask the user before proceeding.
 2. Authenticate with UMA-Dashboard (Section 1.1) → store `devToken` and `tenantId`.
-3. `GET /uma/apps` → inspect existing apps and their `semantic.intent` and `semantic.evolutionNotes`. Do not create a new app if one already exists that matches the intent.
+3. Check `uma.env` for `UMA_APP_ID` and `UMA_TENANT_ID`:
+   - **If both are present:** This project has an existing app. Use `UMA_APP_ID` as the `appId` and `UMA_TENANT_ID` as the `tenantId` for all subsequent operations. Skip app creation in Phase 3. Proceed directly to understanding the user's current request in Phase 2.
+   - **If absent:** This is a new project. Proceed through all phases normally.
 
 ---
 
@@ -1637,9 +1645,42 @@ When the user gives a prompt to build any app or software, execute the following
 
 ---
 
+**Phase 2.5 — Present Data Model for User Confirmation**
+
+Before creating anything in UMA, present the designed data model to the user for confirmation. **Do not show raw JSON.** Display it as human-readable tables so non-technical users can understand and verify it.
+
+For each schema, show:
+
+```
+## [SchemaName]
+Intent:   [semantic.intent]
+Purpose:  [semantic.purpose]
+Behavior: [semantic.behavior]
+
+| Field ID       | Display Name   | Type      | Required | Purpose                              |
+|----------------|----------------|-----------|----------|--------------------------------------|
+| productCode    | Product Code   | SEQUENCE  | No       | Auto-generated unique identifier     |
+| name           | Product Name   | TEXT      | Yes      | The name of the product              |
+| price          | Price          | MONEY     | Yes      | Selling price in USD                 |
+| category       | Category       | LINKED    | Yes      | Links to the Category schema         |
+```
+
+Then ask:
+> *"Here is the data model I've designed for your app. Does this look right? Let me know if you'd like to add, remove, or change anything before I build it."*
+
+Only proceed to Phase 3 after the user confirms. If the user requests changes, update the design and re-present the tables before asking again.
+
+---
+
 **Phase 3 — Build the Data Model in UMA**
 
 7. `POST /uma/apps` — create the app with full `semantic`. If it already exists (`DUPLICATED_APPS`), use the existing app.
+   - **After the app is successfully created**, write `UMA_TENANT_ID` and `UMA_APP_ID` into `uma.env`:
+     ```
+     UMA_TENANT_ID=tnt_1f8e2jur
+     UMA_APP_ID=ProductManagement
+     ```
+     This ensures future sessions know which app belongs to this project and do not create a new one.
 8. `POST /uma/apps/{appId}/schemas/{formId}` — create each schema with full `semantic` on the schema and on every field. Follow the creation order from step 6.
 9. Insert test data to verify the schema works (Section 7.5).
 10. Record what was built in `semantic.evolutionNotes` at schema and app level (Section 7.8).
