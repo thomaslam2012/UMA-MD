@@ -22,8 +22,8 @@ Content-Type: application/json
 
 {
   "authType": "PASSWORD",
-  "email": "thomaslam2004@gmail.com",
-  "password": "password"
+  "email": "your-email@example.com",
+  "password": "your-password"
 }
 ```
 
@@ -150,6 +150,8 @@ An **App** is the top-level namespace. All schemas and data records belong to an
 }
 ```
 
+**ID field note:** The App object uses `_id` (with underscore) as its identifier field. Schema and FormData objects use `id` (no underscore). Always use the correct field name when extracting IDs.
+
 **Agent use:** Call this first to discover existing apps. Check `semantic.intent` and `semantic.evolutionNotes` before creating a new app to avoid duplicates.
 
 ---
@@ -196,11 +198,30 @@ An **App** is the top-level namespace. All schemas and data records belong to an
 
 **Purpose:** Full replacement of an app record. All fields are overwritten.
 
-**Request Body:** Same shape as POST.
+**Request Body:** Same shape as POST, plus `version`:
+
+```json
+{
+  "appId": "ProductCatalog",
+  "appName": "Product Catalog",
+  "version": 1,
+  "description": "Manages all product and inventory data",
+  "semantic": {
+    "intent": "...",
+    "meaning": "...",
+    "purpose": "...",
+    "constraints": [],
+    "behavior": "...",
+    "evolutionNotes": "..."
+  }
+}
+```
+
+**Note:** `version` must match the current server-side version. Mismatch returns `VERSION_CONFLICT`. Always fetch the app first to get the current `version`.
 
 **Response:** `HTTP 200` with the updated app object.
 
-**Agent use:** Use when semantics need to be fully rewritten. Requires `version` to be current.
+**Agent use:** Use when the full app record needs to be replaced. Always fetch the current app first to get `version` and existing field values before sending a PUT.
 
 ---
 
@@ -244,6 +265,17 @@ An **App** is the top-level namespace. All schemas and data records belong to an
 ### 2.2 Schemas — `/uma/apps/{appId}/schemas`
 
 A **Schema** defines the structure of a form (analogous to a table definition). It holds a map of field definitions keyed by `fieldId`.
+
+**Critical identifier rule:** The key in the `fields` map **must exactly equal** the `fieldId` value inside the field object. They are not inferred from each other — both must be present and identical.
+
+```json
+"fields": {
+  "email": {          ← map key
+    "fieldId": "email",   ← must match the key exactly
+    "fieldType": "EMAIL"
+  }
+}
+```
 
 ---
 
@@ -389,11 +421,12 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
 **Purpose:** Replace a schema. This is the primary way to add or update fields.
 
 **Critical rules enforced by server:**
+- `version` must be included in the body and must match the current server-side version. Mismatch returns `VERSION_CONFLICT`. Omitting it returns `VERSION_IS_MISSING`.
 - Field types are **immutable**. Sending a field with the same `fieldId` but a different `fieldType` returns `FIELD_TYPE_CHANGED_NOT_ALLOWED`.
 - Fields present in the existing schema but absent from the request body are automatically marked `deprecated: true` (soft-delete). They are not removed.
 - Deprecated fields from the existing schema are preserved in the document even if not included in the request.
 
-**Agent use:** Always fetch the current schema first with `GET /uma/apps/{appId}/schemas/{formId}`. Include all non-deprecated existing fields plus any new fields.
+**Agent use:** Always fetch the current schema first with `GET /uma/apps/{appId}/schemas/{formId}`. Extract the `version` from the response and include it in the PUT body. Include all non-deprecated existing fields plus any new fields.
 
 **Response:** `HTTP 200` with the updated schema object.
 
@@ -417,7 +450,7 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
 
 #### `PATCH /uma/apps/{appId}/schemas/{formId}/restore`
 
-**Purpose:** Restore a soft-deleted schema.
+**Purpose:** Restore a soft-deleted schema. This is the **only** PATCH operation on schemas — there is no partial update PATCH for schemas. To update schema content or semantics, use `PUT`.
 
 **Response:** `HTTP 204 No Content`
 
@@ -561,7 +594,10 @@ loop:
 }
 ```
 
-**Note:** `version` must match the current server-side version. Mismatch returns `VERSION_CONFLICT`.
+**Notes:**
+- `version` must match the current server-side version. Mismatch returns `VERSION_CONFLICT`.
+- Do not include SEQUENCE or UNIQUE fields in `data`. They are not regenerated on update; the server will ignore or reject them.
+- LINKED and EMBED field format rules are the same as POST (see POST notes above).
 
 **Response:** `HTTP 200` with the updated record object.
 
@@ -602,6 +638,8 @@ loop:
 | `includeDeprecated` | boolean | `false` | When `true`, deprecated schema fields are included in the `data` object of each returned record. Has no effect on which records are returned. |
 
 **Request Body:**
+
+> **Important:** The query body field is `appsId` (not `appId`). Using `appId` will cause the request to fail silently or return unexpected results.
 
 ```json
 {
@@ -772,8 +810,8 @@ All errors return a consistent body shape:
 | 400 | `FIELD_IS_DEPRECATED` | Field is deprecated | Restore the field with `/restore` or use a different `fieldId`. |
 | 400 | `SCHEMA_IS_DEPRECATED` | Schema is deprecated | Call `PATCH /schemas/{formId}/restore` before modifying. |
 | 400 | `APP_IS_DEPRECATED` | App is deprecated | Call `PATCH /apps/{appId}/restore` before modifying. |
-| 400 | `VERSION_CONFLICT` | `version` in request does not match current version | Fetch the record again to get the current `version`, then retry. |
-| 400 | `VERSION_IS_MISSING` | `version` not supplied in update request | Fetch the record, extract `version`, include it, then retry. |
+| 400 | `VERSION_CONFLICT` | `version` in request does not match current version | Fetch the resource again (app, schema, or record) to get the current `version`, then retry. |
+| 400 | `VERSION_IS_MISSING` | `version` not supplied in update request | Fetch the resource, extract `version`, include it in the request body, then retry. |
 | 400 | `IDENTIFIER_MISMATCH` | `appId` or `formId` in path ≠ body | Align path and body values. |
 | 400 | `APP_ID_MISMATCH` | `appId` in path does not match body | Align path and body values. |
 | 400 | `FORM_ID_MISMATCH` | `formId` in path does not match body | Align path and body values. |
@@ -845,7 +883,7 @@ The `fieldType` string in a field definition determines its behavior and accepte
 | `URL` | URL string |
 | `FILE` | File reference |
 | `MONEY` | Monetary amount with currency code and fraction digits |
-| `SEQUENCE` | Auto-incrementing formatted identifier (e.g., `ORD-0001`) |
+| `SEQUENCE` | Auto-incrementing formatted identifier (e.g., `ORD-000001`) |
 | `UNIQUE` | Auto-generated random unique identifier with prefix |
 | `LINKED` | Foreign key reference to another form's records |
 | `RELATED` | Inverse relationship — reads back-references from a LINKED form |
@@ -865,8 +903,8 @@ Present on every field regardless of type.
 | `fieldType` | string | required | Field type (see Section 4). **Immutable after creation.** |
 | `fieldDisplays` | object | optional | Display labels keyed by language code (e.g., `{ "EN": "Full Name" }`) |
 | `allowMultiple` | boolean | `false` | For **LINKED** and **EMBED** fields: enforced at runtime — sending an array when `false` returns `SINGLE_VALUE_ONLY`. For all other types (TEXT, NUMERIC, etc.): metadata only — the server stores whatever value is passed; `allowMultiple` is not validated. |
-| `required` | boolean | `false` | Whether the field is structurally required |
-| `validateRequired` | boolean | `false` | Whether the server validates the value is non-null on save |
+| `required` | boolean | `false` | Client-side/display hint only. The server does **not** reject null values based on this flag alone. Use this to communicate to UI generators that the field should be shown as required. |
+| `validateRequired` | boolean | `false` | Server-enforced. When `true`, the server rejects the request if this field is null or absent in `data`. Set `validateRequired: true` whenever the field must genuinely be non-null at write time. |
 | `deprecated` | boolean | `false` | Soft-delete flag. Set by server when field is omitted from a PUT. |
 | `semantic` | object | optional | Semantic metadata (see Section 6) |
 
@@ -1049,7 +1087,7 @@ Output example: `"ORD-000001"`
 **Filtering:** Use the formatted string value in filter conditions. The server automatically converts it to the stored numeric value before querying.
 
 ```json
-{ "field": "orderNumber", "operator": "EQUALS", "value": "ORD-0000001" }
+{ "field": "orderNumber", "operator": "EQUALS", "value": "ORD-000001" }
 ```
 
 Range queries are supported — use `GREATER_THAN_OR_EQUAL` and `LESS_THAN_OR_EQUAL` together for an inclusive range:
@@ -1058,8 +1096,8 @@ Range queries are supported — use `GREATER_THAN_OR_EQUAL` and `LESS_THAN_OR_EQ
 {
   "operator": "AND",
   "conditions": [
-    { "field": "orderNumber", "operator": "GREATER_THAN_OR_EQUAL", "value": "ORD-00000203" },
-    { "field": "orderNumber", "operator": "LESS_THAN_OR_EQUAL",    "value": "ORD-00000208" }
+    { "field": "orderNumber", "operator": "GREATER_THAN_OR_EQUAL", "value": "ORD-000203" },
+    { "field": "orderNumber", "operator": "LESS_THAN_OR_EQUAL",    "value": "ORD-000208" }
   ]
 }
 ```
@@ -1067,7 +1105,7 @@ Range queries are supported — use `GREATER_THAN_OR_EQUAL` and `LESS_THAN_OR_EQ
 The `IN` operator also accepts a list of formatted strings:
 
 ```json
-{ "field": "orderNumber", "operator": "IN", "value": ["ORD-00000203", "ORD-00000205", "ORD-00000208"] }
+{ "field": "orderNumber", "operator": "IN", "value": ["ORD-000203", "ORD-000205", "ORD-000208"] }
 ```
 
 ---
@@ -1091,7 +1129,7 @@ Generates a random unique value per record. Value is **generated server-side —
 | `separator` | string | `"-"` | Separator |
 | `length` | integer | `10` | Total length. `length - prefix.length - separator.length` must be > 0. |
 
-Output example: `"USR-4829301"`
+Output example: `"USR-482930"` (prefix=3, separator=1, padding=6 → total=10)
 
 ---
 
@@ -1138,6 +1176,8 @@ The server resolves the referenced record and returns its data in the response a
 ### 5.15 RELATED
 
 Inverse side of a LINKED relationship. Reads back-references automatically. The referenced schema (`refFormId`) must contain a LINKED field pointing back to the current form.
+
+**RELATED fields are read-only.** Never include them in `data` when creating or updating records. The server populates them automatically by resolving the back-reference from the LINKED form.
 
 ```json
 {
@@ -1295,6 +1335,16 @@ When a user requests a feature:
 4. POST /uma/apps/{appId}/form/{formId}  (insert test data)
 ```
 
+**Circular LINKED references** (Schema A links to B, Schema B links back to A):
+
+```
+1. POST Schema A — omit the LINKED field that points to B
+2. POST Schema B — include the LINKED field pointing to A
+3. PUT Schema A — add the LINKED field pointing to B (now that B exists)
+```
+
+Never attempt to create both schemas simultaneously with cross-references — the server validates `refFormId` existence at creation time.
+
 ### 7.4 Evolving an Existing Schema
 
 ```
@@ -1304,7 +1354,9 @@ When a user requests a feature:
 4. Merge new fields into the existing fields map
 5. PUT /uma/apps/{appId}/schemas/{formId}  → submit full updated schema
    (always include existing non-deprecated fields to prevent accidental deprecation)
-6. PATCH /uma/apps/{appId} or PATCH /uma/apps/{appId}/schemas/{formId}  → update semantic if needed
+   (include updated semantic in the PUT body — there is no PATCH for schema semantics)
+6. PATCH /uma/apps/{appId}  → update app-level semantic if needed
+   (PATCH on schemas is restore-only; schema semantic updates must go through PUT)
 ```
 
 **Never omit existing fields from a PUT body unless intentionally deprecating them.**
@@ -1317,7 +1369,10 @@ When a user requests a feature:
    - Use fieldType to generate a valid test value
    - Respect validateRequired: true fields (must not be null)
    - Skip SEQUENCE and UNIQUE fields (server-generates them)
-   - For LINKED fields: first insert referenced records and use their IDs
+   - Skip RELATED fields (read-only, server-populated)
+   - For LINKED fields: first insert referenced records and use their ObjectId strings
+   - For EMBED fields: provide an inline object matching embeddedFormSchema.fields
+     (do NOT insert separate records — EMBED is not a foreign key)
 3. POST /uma/apps/{appId}/form/{formId}  → insert record
 4. Repeat as needed for test coverage
 ```
@@ -1344,8 +1399,8 @@ The agent must handle the following errors without surfacing them to the user:
 | `DUPLICATED_SCHEMA` | Schema already exists. Fetch it and merge changes via PUT. |
 | `APP_NOT_EXIST` | Create the app, then retry original operation. |
 | `SCHEMA_NOT_EXIST` | Create the schema, then retry original operation. |
-| `VERSION_CONFLICT` | Fetch the current record to get its `version`, then retry. |
-| `VERSION_IS_MISSING` | Fetch the current record, extract `version`, add to request, retry. |
+| `VERSION_CONFLICT` | Fetch the current resource (app, schema, or record) to get its `version`, then retry. |
+| `VERSION_IS_MISSING` | Fetch the current resource, extract `version`, add to request body, then retry. |
 | `APP_IS_DEPRECATED` | Call `PATCH /apps/{appId}/restore`, then retry. |
 | `SCHEMA_IS_DEPRECATED` | Call `PATCH /schemas/{formId}/restore`, then retry. |
 | `FIELD_IS_DEPRECATED` | Call `PATCH /schemas/{formId}/fields/{fieldId}/restore`, then retry. |
@@ -1358,9 +1413,24 @@ The agent must handle the following errors without surfacing them to the user:
 
 ### 7.8 Semantic Integrity Rule
 
-After completing any schema evolution, update `semantic.evolutionNotes` on the modified schema to record what changed and why. This preserves the semantic chain for future evolution passes.
+After completing any schema evolution, record what changed and why in `semantic.evolutionNotes`. There are two levels:
 
-Example:
+**Schema-level notes** — include updated `semantic` in the PUT body (no PATCH available for schemas):
+
+```
+PUT /uma/apps/{appId}/schemas/{formId}
+Content-Type: application/json
+
+{
+  "version": <current>,
+  "fields": { ... all existing + new fields ... },
+  "semantic": {
+    "evolutionNotes": "Added phoneNumber (TEXT) in v2 for SMS notifications. Do not remove email — still used as join key."
+  }
+}
+```
+
+**App-level notes** — use PATCH (partial update available for apps):
 
 ```
 PATCH /uma/apps/{appId}
@@ -1368,7 +1438,7 @@ Content-Type: application/json
 
 {
   "semantic": {
-    "evolutionNotes": "Added phoneNumber (TEXT) in v2 for SMS notifications. Do not remove email — still used as join key."
+    "evolutionNotes": "v2: Customer schema extended with phoneNumber. Order schema added."
   }
 }
 ```
@@ -1384,3 +1454,5 @@ Content-Type: application/json
 | `appId` cannot be changed after creation | No mechanism to change it |
 | Deprecated schemas cannot be modified | Returns `SCHEMA_IS_DEPRECATED` |
 | Deprecated apps cannot be modified | Returns `APP_IS_DEPRECATED` |
+| FormData records cannot be restored after delete | DELETE is permanent (hard delete). There is no restore endpoint for records. |
+| RELATED fields cannot be written | RELATED is read-only. Including it in `data` on POST/PUT will be ignored or cause an error. |
