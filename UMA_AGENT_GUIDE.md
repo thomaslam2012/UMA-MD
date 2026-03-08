@@ -1280,7 +1280,51 @@ No additional attributes beyond base.
 
 ### 5.10 FILE
 
-No additional attributes beyond base.
+No additional schema-level attributes beyond base.
+
+UMA stores file content **directly in MongoDB** — not a URL or external reference. The file is embedded inside the form record.
+
+**Form data input format** — provide a JSON object with two fields:
+
+```json
+{
+  "data": {
+    "attachment": {
+      "bytesBase64": "JVBERi0xLjQKJeLj...",
+      "contentType": "application/pdf"
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `bytesBase64` | string | yes | Base64-encoded file content |
+| `contentType` | string | yes | MIME type (e.g. `"application/pdf"`, `"image/png"`) |
+
+**Server response** — returns the same object structure:
+
+```json
+{
+  "data": {
+    "attachment": {
+      "bytesBase64": "JVBERi0xLjQKJeLj...",
+      "contentType": "application/pdf"
+    }
+  }
+}
+```
+
+**Validation errors:**
+
+| Condition | Error | Message |
+|-----------|-------|---------|
+| `bytesBase64` is blank | `FORM_VALIDATE_FAIL` | `"bytesBase64 is missing"` |
+| `contentType` is blank | `FORM_VALIDATE_FAIL` | `"contentType is missing"` |
+| `bytesBase64` is not valid Base64 | `FORM_VALIDATE_FAIL` | `"Invalid base64 format"` |
+| Decoded file exceeds 5MB | `FORM_VALIDATE_FAIL` | `"File size exceeds 5MB limit"` |
+
+**Agent use:** When generating UI for FILE fields, the frontend must read the file, Base64-encode it, and send the encoded string with the correct MIME type. Do not send a file path or URL — UMA expects the raw file content encoded as Base64. The 5MB limit applies to the decoded file size.
 
 ---
 
