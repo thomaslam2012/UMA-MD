@@ -299,7 +299,9 @@ Content-Type: application/json
 
 ```json
 {
-  "email": "user@example.com"
+  "email": "user@example.com",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
 }
 ```
 
@@ -318,7 +320,9 @@ Content-Type: application/json
 {
   "email": "user@example.com",
   "newPassword": "newpassword",
-  "code": "130449"
+  "code": "130449",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
 }
 ```
 
