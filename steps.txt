@@ -16,6 +16,8 @@ When starting a new project that uses UMA as the backend, do the following:
 
 4. For Claude Code:
    Copy CLAUDE.md               → your project root
+   Copy .claude/settings.json   → your project root (preserve the folder structure)
+   (This pre-approves UMA API calls so Claude Code does not ask for permission on every request)
 
 5. For Cursor:
    Copy .cursor/rules/uma.mdc   → your project root (preserve the folder structure)
