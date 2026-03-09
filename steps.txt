@@ -45,3 +45,6 @@ Notes:
 - uma.env.template is safe to commit only if you remove real credentials first.
 - If you use both Claude Code and Cursor on the same project, copy both
   CLAUDE.md + .claude/settings.json and .cursor/rules/uma.mdc.
+- Do NOT run /init in Claude Code. It will overwrite CLAUDE.md and the agent
+  will lose the UMA guide. If CLAUDE.md is accidentally overwritten, copy it
+  again from the UMA-MD template folder.
