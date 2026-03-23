@@ -65,6 +65,36 @@
 
 ---
 
+> ## ⛔ MANDATORY — BEFORE GENERATING ANY DELETE HANDLER
+>
+> Before writing any code that deletes a record, you MUST complete all of the following steps. There are no exceptions.
+>
+> **Step 1.** Fetch all schemas with `GET /uma/apps/{appId}/schemas` and identify every schema that has a LINKED field pointing to the form being deleted.
+>
+> **Step 2.** If no other schema has a LINKED field pointing to this form — proceed to generate the delete code.
+>
+> **Step 3.** If any schema has a LINKED field pointing to this form — read the field-level `semantic` on that LINKED field to understand the relationship in domain terms.
+>
+> **Step 4.** Ask the user in plain language what should happen to those related records. Follow these rules strictly:
+> - No technical field names, no system terms (`LINKED`, `field`, `schema`, `formId`, etc.)
+> - Describe only the real-world relationship and consequence
+> - Use the `semantic.meaning` and `semantic.purpose` of the LINKED field to form the question
+>
+> Example:
+> > *"When a cart is deleted, what should happen to the items inside it — should they be deleted too, or kept?"*
+>
+> **Step 5.** Wait for explicit user confirmation before generating any delete code.
+>
+> **Step 6.** Generate the delete logic based on the user's answer:
+> - If user says delete them: generate code that deletes child records first, then the parent.
+> - If user says keep them: generate code that deletes the parent only.
+>
+> **Step 7.** Record the user's decision in `semantic.evolutionNotes` on the LINKED field so future agents do not need to ask again.
+>
+> ⛔ **HARD STOP — you are not permitted to generate any delete handler until this check is complete and the user has confirmed the intended behavior. No exceptions.**
+
+---
+
 ## Table of Contents
 
 - [What UMA Is](#what-uma-is)
@@ -684,7 +714,7 @@ Only proceed to Phase 3 after the user confirms. If the user requests changes, u
         ```
         Access in code as `process.env.REACT_APP_UMA_HOST`
     - Add the generated `.env` to `.gitignore`. It contains the same values as `uma.env` and should not be committed.
-13. Implement UI or handlers for all entities: list, create, edit, delete, as appropriate for the domain.
+13. Implement UI or handlers for all entities: list, create, edit, delete, as appropriate for the domain. For delete handlers, follow the mandatory delete check above.
 14. Use `POST .../records:query` for any search, filter, or paginated views (Section 7.6). Read `UMA_REFERENCE.md` Section 2.3 for query format details.
 
 ---

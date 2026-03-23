@@ -956,6 +956,8 @@ References records in another form. Stores a snapshot or live reference.
 
 When `allowMultiple: true`, provide an array of ObjectId strings.
 
+**Response format in LIVE mode:** The field value is returned as an array regardless of `allowMultiple`. Always access the first element as `record.data.fieldId[0]`.
+
 ---
 
 ### 5.15 RELATED
