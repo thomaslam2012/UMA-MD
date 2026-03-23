@@ -163,3 +163,17 @@ Use `GREATER_THAN_OR_EQUAL` / `LESS_THAN_OR_EQUAL` operators. Send values as-is 
 { operator: 'GREATER_THAN_OR_EQUAL', field: fieldId, value: dateFrom }
 { operator: 'LESS_THAN_OR_EQUAL',    field: fieldId, value: dateTo   }
 ```
+
+## React Frontend — LINKED and RELATED Field UI Rules
+
+**Apply these rules only when generating a React frontend.**
+
+### RELATED fields — never show in create/edit forms
+
+RELATED fields are server-computed back-references. The user cannot set them — they are derived automatically. Never render a RELATED field as an input in create or edit forms. Only show them in read-only table or detail views.
+
+In the API response, RELATED fields appear as an **array** of back-referenced records — always iterate over the array when rendering, never treat it as a single value.
+
+### LINKED fields — id is always available
+
+When using `fieldMode: PARTIAL`, the `id` of the referenced record is always returned even if not in `selectedFieldIds`. Use this `id` to fetch the full record when needed — you never lose access to the complete linked record.

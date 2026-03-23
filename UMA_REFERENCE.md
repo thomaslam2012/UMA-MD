@@ -1011,11 +1011,30 @@ When `allowMultiple: true`, provide an array of ObjectId strings.
 
 **Response format in LIVE mode:** The field value is returned as an array regardless of `allowMultiple`. Always access the first element as `record.data.fieldId[0]`.
 
+**`fieldMode` and `id`:** Regardless of `fieldMode`, the `id` of the referenced record is always returned. Use `PARTIAL` when only a few fields are needed for display — the `id` is always available for a follow-up fetch of the full record.
+
+| `fieldMode` | What is returned |
+|---|---|
+| `FULL` | All fields from the referenced record + `id` |
+| `PARTIAL` | Only `selectedFieldIds` + `id` |
+
+**LINKED vs RELATED:**
+
+| Feature | LINKED | RELATED |
+|---|---|---|
+| `dataMode` | ✓ LIVE / SNAPSHOT | — not supported |
+| `fieldMode` | ✓ FULL / PARTIAL | ✓ FULL / PARTIAL |
+| `selectedFieldIds` | ✓ when PARTIAL | ✓ when PARTIAL |
+| `allowMultiple` | ✓ | — not supported |
+| Writable | ✓ | ✗ read-only |
+
+Use `LINKED` when you need control over data freshness (`dataMode`) or multi-select. Use `RELATED` for a simple back-reference.
+
 ---
 
 ### 5.15 RELATED
 
-Inverse side of a LINKED relationship. Reads back-references automatically. **Read-only — do not include in record `data`.** The referenced schema (`refFormId`) must contain a LINKED field pointing back to the current form.
+Inverse side of a LINKED relationship. **Server-computed — never stored on the record itself.** The server resolves it at query time by finding records in the referenced form whose LINKED field points back to the current record. **Read-only — do not include in record `data`.**
 
 ```json
 {
@@ -1031,6 +1050,10 @@ Inverse side of a LINKED relationship. Reads back-references automatically. **Re
 | `refFormId` | string | **required**. Referenced schema must have a LINKED field pointing to this form. |
 | `fieldMode` | string | `"FULL"` or `"PARTIAL"`. Same rules as LINKED. |
 | `selectedFieldIds` | array of strings | Required when `"PARTIAL"`. Empty when `"FULL"`. |
+
+The `id` of each back-referenced record is always returned regardless of `fieldMode`.
+
+**Response format:** RELATED fields are returned as an **array** of back-referenced records. For example, fetching a Doctor record with a RELATED field `patients` returns all Patient records whose `doctor` LINKED field points to that Doctor's `id`. The Doctor record itself never stores a patient list — the server resolves it at read time.
 
 ---
 
