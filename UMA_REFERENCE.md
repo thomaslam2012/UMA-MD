@@ -580,6 +580,12 @@ Data records stored for a given schema. Each record has system fields plus a `da
 | Ends with "foo" | `.*foo$` |
 | Exact match | `^foo$` |
 
+**Searchable field types** — only these field types produce meaningful results with `LIKE`. Use this list when building a search box to determine which fields to include in the filter:
+
+`TEXT`, `EMAIL`, `URL`, `LINKED`, `RELATED`, `SEQUENCE`, `UNIQUE`
+
+Do not apply `LIKE` to `NUMERIC`, `BOOLEAN`, `DATE`, `DATE_TIME`, `TIME`, `MONEY`, or `EMBED` fields.
+
 **Filter response** (paginated):
 
 ```json
@@ -718,18 +724,25 @@ Input value: `"yyyy-MM-dd"` (e.g., `"2025-01-15"`).
 }
 ```
 
-`datePattern` controls the output format only. Available values:
+⛔ **Always send ISO format (`yyyy-MM-dd`) to the server when writing records — regardless of what display format the field is configured with.** `datePattern` controls the output format only (how the server returns the value on read). It does not affect what the server expects on write.
 
-| Value | Format |
-|-------|--------|
-| `ISO_LOCAL_DATE` | `yyyy-MM-dd` |
-| `SLASH_DATE` | `yyyy/MM/dd` |
-| `DASH_DATE` | `dd-MM-yyyy` |
-| `SLASH_DAY_FIRST` | `dd/MM/yyyy` |
-| `DASH_MONTH_FIRST` | `MM-dd-yyyy` |
-| `SLASH_MONTH_FIRST` | `MM/dd/yyyy` |
-| `LONG_DATE` | `EEEE, MMM dd, yyyy` |
-| `MEDIUM_DATE` | `EEE, dd MMM yyyy` |
+| Scenario | Server returns (read) | Client must send (write) |
+|---|---|---|
+| Field has a pattern | Value in pattern format (e.g. `"2026/03/17"`) | ISO string `"2026-03-17"` |
+| Field has no pattern | ISO string `"2026-03-17"` | ISO string `"2026-03-17"` |
+
+`datePattern` available values:
+
+| Value | Example |
+|-------|---------|
+| `ISO_LOCAL_DATE` | `2026-03-17` |
+| `SLASH_DATE` | `2026/03/17` |
+| `DASH_DATE` | `17-03-2026` |
+| `SLASH_DAY_FIRST` | `17/03/2026` |
+| `DASH_MONTH_FIRST` | `03-17-2026` |
+| `SLASH_MONTH_FIRST` | `03/17/2026` |
+| `LONG_DATE` | `Tuesday, Mar 17, 2026` |
+| `MEDIUM_DATE` | `Tue, 17 Mar 2026` |
 
 ---
 
@@ -744,7 +757,33 @@ Input value: `"yyyy-MM-dd'T'HH:mm:ss"` (e.g., `"2025-01-15T09:30:00"`). Stored a
 }
 ```
 
-`dateTimePattern` is optional and controls output format only.
+⛔ **Always send ISO format (`yyyy-MM-ddTHH:mm:ss`) to the server when writing records — regardless of display format.** `dateTimePattern` controls output format only.
+
+| Scenario | Server returns (read) | Client must send (write) |
+|---|---|---|
+| Field has a pattern | Value in pattern format (e.g. `"2026/03/17 02:30 PM"`) | ISO string `"2026-03-17T14:30:00"` |
+| Field has no pattern | ISO string `"2026-03-17T14:30:00"` | ISO string `"2026-03-17T14:30:00"` |
+
+`dateTimePattern` available values:
+
+| Value | Example |
+|-------|---------|
+| `ISO_LOCAL_DATE_TIME` | `2026-03-17T14:30:00` |
+| `DATE_TIME_24H_1` | `2026-03-17 14:30:00` |
+| `DATE_TIME_24H_2` | `2026/03/17 14:30` |
+| `DATE_TIME_24H_3` | `17-03-2026 14:30` |
+| `DATE_TIME_24H_4` | `2026-03-17T14:30:00` |
+| `DATE_TIME_AMPM_1` | `2026-03-17 02:30 PM` |
+| `DATE_TIME_AMPM_2` | `2026-03-17 02:30:00 PM` |
+| `DATE_TIME_AMPM_3` | `2026/03/17 02:30 PM` |
+| `DATE_TIME_AMPM_4` | `2026/03/17 02:30:00 PM` |
+| `DATE_TIME_AMPM_5` | `03-17-2026 02:30 PM` |
+| `DATE_TIME_AMPM_6` | `03/17/2026 02:30 PM` |
+| `DATE_TIME_AMPM_7` | `17-03-2026 02:30 PM` |
+| `DATE_TIME_AMPM_8` | `17/03/2026 02:30 PM` |
+| `DATE_TIME_AMPM_9` | `2026-03-17T02:30:00 PM` |
+| `DATE_TIME_AMPM_10` | `Tuesday, Mar 17, 2026 02:30 PM` |
+| `DATE_TIME_AMPM_11` | `Tue, 17 Mar 2026 02:30:00 PM` |
 
 ---
 
@@ -759,7 +798,21 @@ Input value: `"HH:mm:ss"` (e.g., `"14:30:00"`). Stored as UTC.
 }
 ```
 
-`timePattern` is optional and controls output format only.
+⛔ **Always send ISO format (`HH:mm:ss`) to the server when writing records — regardless of display format.** `timePattern` controls output format only.
+
+| Scenario | Server returns (read) | Client must send (write) |
+|---|---|---|
+| Field has a pattern | Value in pattern format (e.g. `"02:30 PM"`) | ISO string `"14:30:00"` |
+| Field has no pattern | ISO string `"14:30:00"` | ISO string `"14:30:00"` |
+
+`timePattern` available values:
+
+| Value | Example |
+|-------|---------|
+| `ISO_LOCAL_TIME` | `14:30:00` |
+| `HOURS_MINUTES_24H` | `14:30` |
+| `HOURS_MINUTES_AMPM` | `02:30 PM` |
+| `HOURS_MINUTES_SECONDS_AMPM` | `02:30:00 PM` |
 
 ---
 
