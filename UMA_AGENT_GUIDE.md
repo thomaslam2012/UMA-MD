@@ -760,6 +760,67 @@ Apply the same standard to individual field `evolutionNotes` for any field that 
 
 ---
 
+**Semantic quality standard — questions to answer at each level:**
+
+⛔ You are not permitted to submit any `POST` or `PUT` for an app, schema, or field until the semantics answer what breaks without it — not just what it is. The conflict check, the delete handler check, and every future agent session depend entirely on the quality of these notes. Vague semantics silently disable every safety mechanism UMA provides. Apply the questions below before every submission. No exceptions.
+
+Agents default to describing *what something is* rather than *why it exists and what breaks without it*. The following questions must be answered when writing semantics at each level.
+
+**App-level — answer all of these:**
+1. What does this app do in one plain sentence — as a business owner would describe it?
+2. Who are the end users and what are they trying to accomplish?
+3. What is the core workflow from start to finish?
+4. Which schemas are most critical — if they broke, the app would stop working?
+5. Which schemas are children of other schemas and must never be orphaned?
+
+Bad: `"intent": "Manage store data", "evolutionNotes": "Core app. Do not delete."`
+
+Good: `"intent": "Run an online retail store end to end", "meaning": "Customers browse products, add them to a cart, and check out to create an order", "behavior": "Core workflow: Product + Category exist first. Customer is created. Cart is created for Customer. CartItems are added to Cart. Checkout converts Cart + CartItems into Order + OrderItems and deletes the Cart.", "evolutionNotes": "Critical schemas: Product, Cart, Order. CartItem is a child of Cart — deleting a Cart must delete its CartItems first. OrderItem is a child of Order."`
+
+---
+
+**Schema-level — answer all of these:**
+1. What real-world business event causes a record to be created?
+2. What real-world business event causes a record to be deleted or closed?
+3. What other schemas must exist before this schema's records can be created?
+4. What other schemas break if this schema is renamed, removed, or restructured?
+5. Which fields on this schema are workflow-critical — driving UI state, filters, or pipelines?
+6. Are new optional fields safe to add? Are any fields unsafe to make required?
+
+Bad: `"intent": "Store cart data", "evolutionNotes": "Important schema. Do not break."`
+
+Good: `"intent": "Hold a customer's selected products before they place an order", "behavior": "Created when a customer starts shopping. CartItems are added as children. Checkout converts this Cart into an Order, deletes all CartItems, then deletes this Cart.", "constraints": ["Customer must exist before a Cart can be created", "Deleting a Cart must delete all its CartItems first"], "evolutionNotes": "CartItem.cart is a LINKED field pointing to this schema — do not rename formId. The status field drives the checkout button visibility in the UI — do not add new values without updating CartsPage.tsx."`
+
+---
+
+**Field-level — answer all of these:**
+1. Why does this field exist — what decision, display, or workflow does it enable?
+2. What is shown or broken in the UI if this field is missing or empty?
+3. Is this field used as a filter, a sort key, a display label, or a join reference?
+4. If this field has constrained values (like a status), what happens in the UI for each value?
+5. What breaks if this field is removed entirely?
+6. What breaks if the allowed values change?
+
+Bad: `"purpose": "The order status", "evolutionNotes": "Required field."`
+
+Good: `"purpose": "Tracks where the order is in the fulfillment pipeline so operators know what action to take next", "evolutionNotes": "Drives badge colors in OrdersPage.tsx (pending=yellow, processing=blue, shipped=blue, delivered=green, cancelled=red). Checkout sets this to 'pending' on creation — changing that default breaks checkout. Do not remove any existing value — orders already in the system carry these values. Do not add new values without adding a badge color mapping and updating ORDER_STATUSES in constants.ts."`
+
+---
+
+**Field-level by field type — tailor `evolutionNotes` to the specific risks:**
+
+| Field Type | What `evolutionNotes` must address |
+|---|---|
+| `SEQUENCE` | Is it referenced by a LINKED field in another schema? What breaks if deprecated? |
+| `LINKED` | What schema does it point to? What happens if the parent record is deleted? Can it be null? |
+| `RELATED` | What schema populates it? Is it used in the UI as a list? |
+| `TEXT` with enum values | List all allowed values. What does each value mean in the UI or workflow? |
+| `MONEY` | Is it calculated or user-entered? What breaks if it's zero or null? |
+| `BOOLEAN` | What is the default? What UI element or workflow does each state control? |
+| `EMBED` | What sub-fields does it contain? Is the shape expected anywhere in the code? |
+
+---
+
 **Circular LINKED references** (Schema A links to B, Schema B links back to A):
 
 ```
@@ -888,6 +949,23 @@ Content-Type: application/json
   }
 }
 ```
+
+**Semantic audit — run this after every schema creation or update. This is mandatory:**
+
+```
+For each schema just created or modified:
+1. Read the semantic at schema level and at every field level.
+2. For each one, check: does it answer what breaks without it, not just what it is?
+3. For any semantic that only describes what the field is, rewrite it to describe
+   what breaks if it is removed, changed, or left empty.
+4. Re-submit the schema with the improved semantics via PUT.
+```
+
+**The test — apply this after writing any semantic:**
+
+> *"If a brand new agent read only this semantic — with no access to the code, no memory of this session, and no other context — would it know what not to touch and why?"*
+
+If the answer is no, the semantic is not good enough. Rewrite it.
 
 ---
 

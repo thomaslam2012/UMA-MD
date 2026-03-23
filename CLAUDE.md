@@ -21,6 +21,10 @@ Read and follow the full guide:
 
 Never hardcode any host, port, or credential values in generated code.
 
+## Semantic Quality Standard
+
+⛔ You are not permitted to submit any `POST` or `PUT` for an app, schema, or field without semantics that answer what breaks without it — not just what it is. Before submitting, apply the questions in Section 7.3 of `UMA_AGENT_GUIDE.md` for that level. Vague notes like "do not modify without care" or "used by the system" must be rewritten before submitting. This is not optional — without high-quality semantics, every future safety check UMA performs is blind.
+
 ## React + TanStack Query — Client Cache Security Rules
 
 **Apply these rules only when generating a React frontend that uses TanStack Query.**
