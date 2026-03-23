@@ -287,6 +287,8 @@ Embed these as configuration constants in any generated code.
 
 The **login response token** (`data.token`) is the Bearer token the generated app uses to call `/uma/*` data endpoints on behalf of the logged-in user.
 
+**204 No Content:** Sections 1.2.2, 1.2.3, 1.2.4, and 1.2.5 return `HTTP 204` with no response body on success. Do not call `res.json()` on these responses — guard against it: `if (res.status === 204) return {}`.
+
 ---
 
 #### 1.2.1 Sign Up

@@ -571,6 +571,15 @@ Data records stored for a given schema. Each record has system fields plus a `da
 }
 ```
 
+**`LIKE` uses Java regex, not SQL wildcards.** The backend compiles the `value` as a `java.util.regex.Pattern` (case-insensitive). Do not use `%` — use `.*` instead.
+
+| Use case | Pattern |
+|----------|---------|
+| Contains "foo" | `.*foo.*` |
+| Starts with "foo" | `^foo.*` |
+| Ends with "foo" | `.*foo$` |
+| Exact match | `^foo$` |
+
 **Filter response** (paginated):
 
 ```json
