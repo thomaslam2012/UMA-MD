@@ -586,6 +586,49 @@ Data records stored for a given schema. Each record has system fields plus a `da
 
 Do not apply `LIKE` to `NUMERIC`, `BOOLEAN`, `DATE`, `DATE_TIME`, `TIME`, `MONEY`, or `EMBED` fields.
 
+**Searching inside LINKED and RELATED fields — dotted sub-field paths:**
+
+LINKED and RELATED fields store object references, not plain strings. Sending `{ LIKE, field: "doctor", value: ".*tho.*" }` does not work — the backend cannot substring-match an object. Instead use dotted sub-field paths: `fieldId.subFieldId`.
+
+```json
+{ "operator": "LIKE", "field": "doctor.name",  "value": ".*tho.*" }
+{ "operator": "LIKE", "field": "doctor.email", "value": ".*tho.*" }
+```
+
+- `fieldMode: FULL` — expand search across all text-like fields in the referenced schema
+- `fieldMode: PARTIAL` — expand search only across `selectedFieldIds`
+- Never send the plain `{ LIKE, field: "doctor" }` condition — replace it entirely with the expanded dotted-path conditions
+- Nested LINKED/RELATED inside the referenced form are **not** recursed further
+
+Only these types are LIKE-searchable inside a referenced record:
+
+| Type | Searchable |
+|---|---|
+| `TEXT`, `EMAIL`, `URL`, `SEQUENCE`, `UNIQUE` | ✓ |
+| `NUMERIC`, `BOOLEAN`, `DATE`, `DATE_TIME`, `TIME`, `MONEY`, `FILE`, `EMBED` | ✗ |
+| `LINKED`, `RELATED` | ✗ (not recursed) |
+
+**Implementation steps for any frontend:**
+
+1. Collect all LINKED/RELATED fields from the schema's active fields
+2. Fetch each referenced form's schema (parallel requests recommended)
+3. For each LINKED/RELATED field, check `fieldMode` and `selectedFieldIds`
+4. Expand into dotted-path `LIKE` conditions (`fieldId.subFieldId`) for each searchable sub-field
+5. Never send the plain `{ LIKE, field: "doctor" }` condition — replace it entirely with the expanded dotted-path conditions
+
+**Example** — schema has `fullName (TEXT)`, `email (EMAIL)`, `doctor (LINKED → Doctor, fieldMode: PARTIAL, selectedFieldIds: ["name"])`. Search term `tho`:
+
+```json
+{
+  "operator": "OR",
+  "conditions": [
+    { "operator": "LIKE", "field": "fullName",    "value": ".*tho.*" },
+    { "operator": "LIKE", "field": "email",       "value": ".*tho.*" },
+    { "operator": "LIKE", "field": "doctor.name", "value": ".*tho.*" }
+  ]
+}
+```
+
 **Filter response** (paginated):
 
 ```json

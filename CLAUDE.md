@@ -177,3 +177,18 @@ In the API response, RELATED fields appear as an **array** of back-referenced re
 ### LINKED fields — id is always available
 
 When using `fieldMode: PARTIAL`, the `id` of the referenced record is always returned even if not in `selectedFieldIds`. Use this `id` to fetch the full record when needed — you never lose access to the complete linked record.
+
+### Search across LINKED and RELATED fields — React/TanStack implementation
+
+For the general implementation steps that apply to any frontend, see `UMA_REFERENCE.md` Section 2.3.
+
+React-specific: fetch referenced form schemas in parallel using `useQueries` with a 5-minute cache:
+```ts
+useQueries({
+  queries: linkedFields.map((f) => ({
+    queryKey: ['schema', appId, f.refFormId],
+    queryFn: () => fetchSchema(appId, f.refFormId),
+    staleTime: 5 * 60 * 1000,
+  }))
+})
+```
