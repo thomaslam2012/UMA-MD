@@ -1098,6 +1098,24 @@ The `id` of each back-referenced record is always returned regardless of `fieldM
 
 **Response format:** RELATED fields are returned as an **array** of back-referenced records. For example, fetching a Doctor record with a RELATED field `patients` returns all Patient records whose `doctor` LINKED field points to that Doctor's `id`. The Doctor record itself never stores a patient list — the server resolves it at read time.
 
+**Response data shape — LINKED vs RELATED:**
+
+The API returns referenced record data in two possible shapes depending on field type:
+
+| Shape | Example | Typical field |
+|---|---|---|
+| Nested | `{ "id": "abc", "data": { "fullName": "Tom" } }` | LINKED |
+| Flat | `{ "_id": "abc", "fullName": "Tom" }` | RELATED |
+
+Always handle both shapes when reading referenced record values.
+
+**Display name resolution:**
+
+When displaying field labels from a referenced record, resolve the display name in this order:
+1. `fieldDisplays['en']`
+2. `fieldDisplays['EN']`
+3. Raw `fieldId` as fallback
+
 ---
 
 ### 5.16 EMBED

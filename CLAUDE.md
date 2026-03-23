@@ -178,6 +178,53 @@ In the API response, RELATED fields appear as an **array** of back-referenced re
 
 When using `fieldMode: PARTIAL`, the `id` of the referenced record is always returned even if not in `selectedFieldIds`. Use this `id` to fetch the full record when needed — you never lose access to the complete linked record.
 
+### Rendering LINKED and RELATED fields
+
+LINKED and RELATED fields store object references — the API returns the referenced record's data inline. Never display the raw object or a plain ID.
+
+**Table cell preview:**
+- Show the first 2 field values from the first referenced record, joined by ` · `
+- `fieldMode: PARTIAL` — use `selectedFieldIds` order
+- `fieldMode: FULL` — use all non-meta fields in server order
+
+**Overflow badge** — when more fields or records exist than fit in the preview:
+- `+N` — N extra fields on the same record
+- `+N record(s)` — N extra referenced records (RELATED or LINKED with `allowMultiple`)
+
+**Detail view / popover** — show all records and all their fields on expand/hover:
+- Show all non-meta scalar fields only
+- Exclude: `id`, `_id`, `_formId`, `createdAt`, `updatedAt`, `version`, `deprecated`, null/empty values, objects, arrays, booleans
+- Separate multiple records with a divider
+- Use display name resolution from `UMA_REFERENCE.md` Section 5.15 for field labels
+- Fetch the referenced form's schema to get display names (cache the result — it is shared with the search feature)
+
+**fieldMode rendering behaviour:**
+
+| fieldMode | Preview fields | Detail fields |
+|---|---|---|
+| `FULL` | First 2 non-meta scalar fields | All non-meta scalar fields |
+| `PARTIAL` | First 2 of `selectedFieldIds` (scalar only) | All of `selectedFieldIds` (scalar only) |
+
+**RELATED vs LINKED rendering differences:**
+
+| Aspect | LINKED | RELATED |
+|---|---|---|
+| Value shape | Single object or array (if `allowMultiple`) | Always an array |
+| Typical count | 1 (or few) | Many |
+| Edit form | Editable via picker | Read-only |
+| Create form | Editable | Not shown |
+
+**React/TanStack — fetch referenced schema for display names:**
+```ts
+useQueries({
+  queries: linkedFields.map((f) => ({
+    queryKey: ['schema', appId, f.refFormId],
+    queryFn: () => fetchSchema(appId, f.refFormId),
+    staleTime: 5 * 60 * 1000,
+  }))
+})
+```
+
 ### Search across LINKED and RELATED fields — React/TanStack implementation
 
 For the general implementation steps that apply to any frontend, see `UMA_REFERENCE.md` Section 2.3.
