@@ -7,6 +7,7 @@
 
 ## Table of Contents
 
+- [1. Runtime Auth Endpoints](#1-runtime-auth-endpoints)
 - [2. API Endpoints](#2-api-endpoints)
   - [2.1 Apps](#21-apps--umaapps)
   - [2.2 Schemas](#22-schemas--umaappsappidschemas)
@@ -33,6 +34,149 @@
   - [6.1 The semantic Object](#61-the-semantic-object)
   - [6.2 Attribute Definitions](#62-attribute-definitions)
   - [6.3 Semantic-Driven Evolution Rules](#63-semantic-driven-evolution-rules)
+
+---
+
+## 1. Runtime Auth Endpoints
+
+These endpoints are provided by the **UMA-APP service** for end-user authentication. They are automatically available once an app is created — no extra configuration required.
+
+Include `tenantId` and `appId` in every request body. Both are known at development time.
+
+**204 No Content:** Endpoints 1.2, 1.3, 1.4, and 1.5 return `HTTP 204` with no response body on success. Do not call `res.json()` on these — guard against it: `if (res.status === 204) return {}`.
+
+---
+
+### 1.1 Sign Up
+
+```
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/users
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "password": "userpassword",
+  "firstName": "Thomas",
+  "lastName": "Lam",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+After successful signup, the server sends a verification email. The user must verify before they can log in.
+
+---
+
+### 1.2 Verify Email
+
+```
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/users/verification-codes
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "code": "266066",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+The `code` is sent to the user's email after signup. The UI should provide an input field for it.
+
+---
+
+### 1.3 Resend Verification Email
+
+```
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/users/verification-codes/resend
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+---
+
+### 1.4 Password Reset Request
+
+```
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/password-reset-requests
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+The server sends a reset code to the user's email. Use it in the next step.
+
+---
+
+### 1.5 Password Reset
+
+```
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/password-resets
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "newPassword": "newpassword",
+  "code": "130449",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+The `code` comes from the reset email sent in step 1.4. The UI should collect email, code, and new password on the same form.
+
+---
+
+### 1.6 Login
+
+```
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/sessions
+Content-Type: application/json
+```
+
+```json
+{
+  "authType": "PASSWORD",
+  "email": "user@example.com",
+  "password": "userpassword",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+**Response:**
+
+```json
+{
+  "data": {
+    "userId": "usr_d78d835a",
+    "token": "eyJ...",
+    "tokenType": "Bearer",
+    "tenantId": "tnt_1f8e2jur"
+  }
+}
+```
+
+Store `data.token` as the session token. Include it as `Authorization: Bearer <data.token>` on every subsequent `/uma/*` data call. On `HTTP 401`, prompt the user to log in again.
 
 ---
 

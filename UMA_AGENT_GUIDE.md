@@ -103,12 +103,6 @@
   - [Before You Start — Resolve Configuration Values](#before-you-start--resolve-configuration-values)
   - [1.1 Development-Time Auth](#11-development-time-auth-ai-agent--uma)
   - [1.2 Runtime Auth](#12-runtime-auth-generated-app--uma-app)
-    - [1.2.1 Sign Up](#121-sign-up)
-    - [1.2.2 Verify Email](#122-verify-email)
-    - [1.2.3 Resend Verification Email](#123-resend-verification-email)
-    - [1.2.4 Password Reset Request](#124-password-reset-request)
-    - [1.2.5 Password Reset](#125-password-reset)
-    - [1.2.6 Login](#126-login)
 - [2. Reference](#2-reference)
 - [3. Error Handling](#3-error-handling)
 - [7. AI Agent Workflow](#7-ai-agent-workflow)
@@ -161,8 +155,10 @@ Before making any API call, the agent must read configuration from `uma.env` in 
 
 **Steps:**
 1. Look for `uma.env` in the project root directory.
-2. If found, parse all key=value pairs from it.
-3. If the file does not exist or any required key is missing, stop and ask the user: *"Please provide a `uma.env` file in the project root with the required values. See the template below."*
+2. If not found, stop and ask the user: *"Please add the `uma.env` file to the project root and try again."*
+3. If found, parse all key=value pairs from it.
+4. If `UMA_DASHBOARD_CREDENTIALS` is blank or missing, ask the user: *"Please paste your UMA API key."* Then write the value into `uma.env`, leaving all other values unchanged. Do not re-create the file — only update that one key.
+5. If any other required key (`UMA_DASHBOARD_HOST`, `UMA_HOST`, `UMA_PORT`, etc.) is blank or missing, stop and ask the user to check their `uma.env` file.
 
 **`uma.env` format:**
 
@@ -234,16 +230,6 @@ Content-Type: application/json
 **Extract and store:**
 - `data.token` — used as `Authorization: Bearer <token>` on every `/uma/*` API call.
 - `data.tenantId` — store this. It is required when generating the runtime signup UI for the app.
-
-**Environment variables (never hardcode):**
-
-| Variable | Description |
-|----------|-------------|
-| `UMA_DASHBOARD_HOST` | Hostname of UMA-Dashboard service |
-| `UMA_DASHBOARD_PORT` | Port of UMA-Dashboard service |
-| `UMA_DASHBOARD_CREDENTIALS` | API key credential string |
-| `UMA_HOST` | Hostname of UMA service |
-| `UMA_PORT` | Port of UMA service |
 
 **Using the token:**
 
@@ -319,138 +305,7 @@ The **login response token** (`data.token`) is the Bearer token the generated ap
 
 **204 No Content:** Sections 1.2.2, 1.2.3, 1.2.4, and 1.2.5 return `HTTP 204` with no response body on success. Do not call `res.json()` on these responses — guard against it: `if (res.status === 204) return {}`.
 
----
-
-#### 1.2.1 Sign Up
-
-```
-POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "password": "userpassword",
-  "firstName": "Thomas",
-  "lastName": "Lam",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-After successful signup, the server sends a verification email. The user must verify before they can log in.
-
----
-
-#### 1.2.2 Verify Email
-
-```
-POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users/verification-codes
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "code": "266066",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-The `code` is sent by the server to the user's email after signup. The generated UI should provide an input field for the user to enter it.
-
----
-
-#### 1.2.3 Resend Verification Email
-
-```
-POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users/verification-codes/resend
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
----
-
-#### 1.2.4 Password Reset Request
-
-```
-POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/password-reset-requests
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-The server sends a reset code to the user's email. Use the code in the next step.
-
----
-
-#### 1.2.5 Password Reset
-
-```
-POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/password-resets
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "newPassword": "newpassword",
-  "code": "130449",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-The `code` comes from the reset email sent in step 1.2.4. The generated UI should collect email, code, and new password on the same form.
-
----
-
-#### 1.2.6 Login
-
-```
-POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/sessions
-Content-Type: application/json
-```
-
-```json
-{
-  "authType": "PASSWORD",
-  "email": "user@example.com",
-  "password": "userpassword",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-**Response:**
-
-```json
-{
-  "data": {
-    "userId": "usr_d78d835a",
-    "token": "eyJ...",
-    "tokenType": "Bearer",
-    "tenantId": "tnt_1f8e2jur"
-  }
-}
-```
-
-Store `data.token` as the session token. Include it as `Authorization: Bearer <data.token>` on every subsequent `/uma/*` data call made on behalf of this user. On `HTTP 401`, prompt the user to log in again.
+For the exact request/response format of each endpoint (sign up, verify email, resend, password reset, login), read **`UMA_REFERENCE.md` Section 1**.
 
 ---
 
@@ -842,21 +697,8 @@ Never attempt to create both schemas simultaneously with cross-references — th
    If you skip this step and make changes based on assumptions,
    you risk silently breaking existing data and workflows.
 
-2. Internally complete the Conflict Check (do not show to user):
-
-   [INTERNAL — NOT SHOWN TO USER]
-   Schemas read: [list]
-   Fields with protected evolutionNotes: [list each field and its note, or "none"]
-   Conflicts found: YES / NONE
-   If YES — conflict detail: [explain]
-
-   ⛔ HARD STOP — do not proceed until this check is complete.
-
-3. If Conflicts found is NONE — proceed silently. Do not mention the conflict check.
-4. If Conflicts found is YES — show the user only a plain-language warning. No technical field names, no system terms, no internal notes. Describe only what the user would see or lose in business terms. Follow the language rules in Step 6 of the mandatory block above.
-
-   Wait for explicit user confirmation before continuing.
-4. Merge new fields into the existing fields map
+2. Internally complete the Conflict Check — follow the ⛔ MANDATORY block at the top of this guide.
+3. Merge new fields into the existing fields map
 5. PUT /uma/apps/{appId}/schemas/{formId}  → submit full updated schema
    (always include existing non-deprecated fields to prevent accidental deprecation)
    (include updated semantic in the PUT body — there is no PATCH for schema semantics)
@@ -897,26 +739,9 @@ Read `UMA_REFERENCE.md` Section 2.3 for full query, filter, sort, and aggregatio
 
 ### 7.7 Automatic Error Recovery
 
-The agent must handle the following errors without surfacing them to the user:
+Handle the following errors silently — fix and retry without surfacing to the user. See Section 3 for full recovery details on each.
 
-| Error | Auto-Recovery |
-|-------|--------------|
-| `HTTP 401` | Re-authenticate and retry. |
-| `DUPLICATED_APPS` | App already exists. Use existing. Do not re-create. |
-| `DUPLICATED_SCHEMA` | Schema already exists. Fetch it and merge changes via PUT. |
-| `APP_NOT_EXIST` | Create the app, then retry original operation. |
-| `SCHEMA_NOT_EXIST` | Create the schema, then retry original operation. |
-| `VERSION_CONFLICT` | Fetch the current resource (app, schema, or record) to get its `version`, then retry. |
-| `VERSION_IS_MISSING` | Fetch the current resource, extract `version`, add to request body, then retry. |
-| `APP_IS_DEPRECATED` | Call `PATCH /apps/{appId}/restore`, then retry. |
-| `SCHEMA_IS_DEPRECATED` | Call `PATCH /schemas/{formId}/restore`, then retry. |
-| `FIELD_IS_DEPRECATED` | Call `PATCH /schemas/{formId}/fields/{fieldId}/restore`, then retry. |
-| `INVALID_ENUM_VALUE` | Read `allowedValues` from error response. Use a valid value and retry. |
-| `INVALID_TYPE` | Read `expectedType` from error response. Fix `fieldType` and retry. |
-| `FIELD_TYPE_CHANGED_NOT_ALLOWED` | Do not change type. Deprecate the existing field and add a new field with a new `fieldId` of the desired type. Prompt user if semantic notes flag the field as critical. |
-| `SCHEMA_LINKED_ERROR` | Verify `refFormId` exists. Fix `fieldMode`/`selectedFieldIds` per field rules. Retry. |
-| `SCHEMA_RELATED_ERROR` | Add a LINKED field to the referenced schema pointing back to this form, then retry. |
-| `VALIDATION_FAILED` | Read `details.violations`. Each entry has `field` and `message`. Fix the listed fields and retry. |
+`HTTP 401`, `DUPLICATED_APPS`, `DUPLICATED_SCHEMA`, `APP_NOT_EXIST`, `SCHEMA_NOT_EXIST`, `VERSION_CONFLICT`, `VERSION_IS_MISSING`, `APP_IS_DEPRECATED`, `SCHEMA_IS_DEPRECATED`, `FIELD_IS_DEPRECATED`, `INVALID_ENUM_VALUE`, `INVALID_TYPE`, `FIELD_TYPE_CHANGED_NOT_ALLOWED`, `SCHEMA_LINKED_ERROR`, `SCHEMA_RELATED_ERROR`, `VALIDATION_FAILED`
 
 ### 7.8 Semantic Integrity Rule
 
