@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(wc:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c3JfYjUwMzhmZTMiLCJzY29wZSI6IlJPTEVfQUkiLCJpc3MiOiJ0ZXRvbnNvZnQiLCJ0ZW5hbnRJZCI6InRudF8xdnphaXNjayIsInVzZXJUeXBlIjoiQUkiLCJleHAiOjE3NzQ0MDgwODEsImlhdCI6MTc3NDMyMTY4MSwidXNlcklkIjoidXNyX2I1MDM4ZmUzIiwianRpIjoiZjJiYzc5MDEtMmFjZS00YTZiLTliMDktNzE5MDZlOTk4OTMzIn0.RWm7wqxZo-uwaFMV9AS1c8KXybBiWKz1K_qtMBRcw0AZajPaGTNv4O-gyEntGfAqZz-rR_z7of_N54uxSKkahtz2G1MoACjzXtPXGy7PN9tRf8k0FbLoV2ZUuEa7naKdSX1LEg23NSokh5MBcmr0UAfKSQhDf7oM-KnVKnQNaXUtrdHfINRPqMPAQCtz_EoQzVp4fZSGziFgU45txvBadcD9s-OjvxcmWxWyEOpmFb8hngCNmLk7y8QXytWGYs_A9YP_kxGJw16rgxy-0OB0uqCCJ9K_uk6WtQZrzcXjD-ge_C46PZidxhFUuNGR8b3xN2Xe5LYujrrJmf-vpT0ZjA\")"
     ]
   }
 }

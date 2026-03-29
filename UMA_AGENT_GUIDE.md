@@ -103,6 +103,12 @@
   - [Before You Start — Resolve Configuration Values](#before-you-start--resolve-configuration-values)
   - [1.1 Development-Time Auth](#11-development-time-auth-ai-agent--uma)
   - [1.2 Runtime Auth](#12-runtime-auth-generated-app--uma-app)
+    - [1.2.1 Sign Up](#121-sign-up)
+    - [1.2.2 Verify Email](#122-verify-email)
+    - [1.2.3 Resend Verification Email](#123-resend-verification-email)
+    - [1.2.4 Password Reset Request](#124-password-reset-request)
+    - [1.2.5 Password Reset](#125-password-reset)
+    - [1.2.6 Login](#126-login)
 - [2. Reference](#2-reference)
 - [3. Error Handling](#3-error-handling)
 - [7. AI Agent Workflow](#7-ai-agent-workflow)
@@ -155,10 +161,8 @@ Before making any API call, the agent must read configuration from `uma.env` in 
 
 **Steps:**
 1. Look for `uma.env` in the project root directory.
-2. If not found, stop and ask the user: *"Please add the `uma.env` file to the project root and try again."*
-3. If found, parse all key=value pairs from it.
-4. If `UMA_DASHBOARD_CREDENTIALS` is blank or missing, ask the user: *"Please paste your UMA API key."* Then write the value into `uma.env`, leaving all other values unchanged. Do not re-create the file — only update that one key.
-5. If any other required key (`UMA_DASHBOARD_HOST`, `UMA_HOST`, `UMA_PORT`, etc.) is blank or missing, stop and ask the user to check their `uma.env` file.
+2. If found, parse all key=value pairs from it.
+3. If the file does not exist or any required key is missing, stop and ask the user: *"Please provide a `uma.env` file in the project root with the required values. See the template below."*
 
 **`uma.env` format:**
 
@@ -230,6 +234,16 @@ Content-Type: application/json
 **Extract and store:**
 - `data.token` — used as `Authorization: Bearer <token>` on every `/uma/*` API call.
 - `data.tenantId` — store this. It is required when generating the runtime signup UI for the app.
+
+**Environment variables (never hardcode):**
+
+| Variable | Description |
+|----------|-------------|
+| `UMA_DASHBOARD_HOST` | Hostname of UMA-Dashboard service |
+| `UMA_DASHBOARD_PORT` | Port of UMA-Dashboard service |
+| `UMA_DASHBOARD_CREDENTIALS` | API key credential string |
+| `UMA_HOST` | Hostname of UMA service |
+| `UMA_PORT` | Port of UMA service |
 
 **Using the token:**
 
@@ -305,7 +319,144 @@ The **login response token** (`data.token`) is the Bearer token the generated ap
 
 **204 No Content:** Sections 1.2.2, 1.2.3, 1.2.4, and 1.2.5 return `HTTP 204` with no response body on success. Do not call `res.json()` on these responses — guard against it: `if (res.status === 204) return {}`.
 
-For the exact request/response format of each endpoint (sign up, verify email, resend, password reset, login), read **`UMA_REFERENCE.md` Section 1**.
+---
+
+#### 1.2.1 Sign Up
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "password": "userpassword",
+  "firstName": "Thomas",
+  "lastName": "Lam",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+Before accepting the request, the server checks the app's sign-up policy:
+
+- If `status` is `CLOSE` → rejected with `SIGN_UP_CLOSE` (403)
+- If `type` is `DOMAIN` and the email domain is not in `allowedDomains` → rejected with `SIGN_UP_INVALIDATE_DOMAIN` (403)
+- On success → user is assigned `defaultRole` automatically and a verification email is sent. The user must verify before they can log in.
+
+The generated UI must handle all sign-up error codes with user-friendly messages. See `UMA_REFERENCE.md` Section 2.4 for all error codes and sign-up policy details.
+
+---
+
+#### 1.2.2 Verify Email
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users/verification-codes
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "code": "266066",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+The `code` is sent by the server to the user's email after signup. The generated UI should provide an input field for the user to enter it.
+
+---
+
+#### 1.2.3 Resend Verification Email
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/users/verification-codes/resend
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+---
+
+#### 1.2.4 Password Reset Request
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/password-reset-requests
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+The server sends a reset code to the user's email. Use the code in the next step.
+
+---
+
+#### 1.2.5 Password Reset
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/password-resets
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "newPassword": "newpassword",
+  "code": "130449",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+The `code` comes from the reset email sent in step 1.2.4. The generated UI should collect email, code, and new password on the same form.
+
+---
+
+#### 1.2.6 Login
+
+```
+POST http://{UMA-APP-HOST}:{UMA-APP-PORT}/uma-app/auth/sessions
+Content-Type: application/json
+```
+
+```json
+{
+  "authType": "PASSWORD",
+  "email": "user@example.com",
+  "password": "userpassword",
+  "tenantId": "tnt_1f8e2jur",
+  "appId": "ChurchManagement"
+}
+```
+
+**Response:**
+
+```json
+{
+  "data": {
+    "userId": "usr_d78d835a",
+    "token": "eyJ...",
+    "tokenType": "Bearer",
+    "tenantId": "tnt_1f8e2jur"
+  }
+}
+```
+
+Store `data.token` as the session token. Include it as `Authorization: Bearer <data.token>` on every subsequent `/uma/*` data call made on behalf of this user. On `HTTP 401`, prompt the user to log in again.
 
 ---
 
@@ -315,6 +466,7 @@ For full API endpoint details, field types, field attributes, and semantic metad
 
 Read `UMA_REFERENCE.md` when you need to:
 - Make a specific API call and need the exact request/response format (Section 2)
+- Read or modify sign-up policy or role permissions (Section 2.4)
 - Choose a field type for a schema field (Section 4)
 - Configure field attributes (Section 5)
 - Understand semantic metadata structure and evolution rules (Section 6)
@@ -529,6 +681,7 @@ Only proceed to Phase 3 after the user confirms. If the user requests changes, u
      UMA_APP_ID=ProductManagement
      ```
      This ensures future sessions know which app belongs to this project and do not create a new one.
+   - App creation also **automatically creates** a default sign-up policy (`status: OPEN`, `type: PUBLIC`, `defaultRole: ADMIN`, `roles: [ADMIN]`) and a default ADMIN role with `fullAccess: true`. Do not modify these at build time — present them to the user after the app is generated (see Phase 4).
 8. `POST /uma/apps/{appId}/schemas/{formId}` — create each schema with full `semantic` on the schema and on every field. Follow the creation order from step 6. Read `UMA_REFERENCE.md` Section 2.2 for the exact request format.
 9. Insert test data to verify the schema works (Section 7.5).
 10. Record what was built in `semantic.evolutionNotes` at schema and app level (Section 7.8).
@@ -544,11 +697,110 @@ Only proceed to Phase 3 after the user confirms. If the user requests changes, u
       > *"Does your app need users to sign up and log in? UMA-APP supports this automatically with no extra setup required. If you say no, I'll need to embed credentials directly in the code which is not secure for production use."*
       Wait for the user's answer before continuing.
 
+12. **After the app is generated**, inform the user about the default sign-up and access control settings in plain language, then ask if they want to change them now or later:
+
+    > *"Your app is ready. Here's how sign-up and access currently work:*
+    > - *Sign-up is open — anyone with a valid email can register*
+    > - *The first person to sign up will have full admin access to everything*
+    > - *All users will be able to see each other's records*
+    >
+    > *All of this can be changed to fit your needs. Would you like to configure sign-up and access control now, or test the app first and come back to it later?"*
+
+    - **If the user wants to configure now**, ask the following questions one at a time:
+      > - *"Should sign-up be open to anyone, or restricted to specific email domains, or invite-only?"*
+      > - *"Should new users start with full access, or should they have limited permissions by default?"*
+      > - *"Should users be able to see each other's records, or only their own?"*
+
+      Then act on their answers by calling the sign-up policy and role permissions endpoints (see `UMA_REFERENCE.md` Section 2.4).
+
+    - **If the user wants to configure later** — leave defaults as-is. The user can ask to change them at any time.
+
+    ⛔ **Never modify sign-up policy or role permissions unless the user explicitly asks, or the user prompt makes the requirement 100% clear (e.g. "only @company.com emails can sign up"). Do not over-engineer access control before the user knows what they need.**
+
 ---
 
 **Phase 5 — Generate Application Code**
 
-12. Generate the frontend or application code:
+13. Generate the frontend or application code:
+
+    **Mandatory frontend initialization flow** — every generated app with login must follow this sequence on startup:
+
+    ```
+    1. POST /uma-app/auth/sessions          → store JWT as Bearer token
+    2. GET  /uma/apps/{appId}/schemas       → load all form structures
+    3. GET  /uma/apps/{appId}/permissions   → load logged-in user's permissions (role resolved from JWT)
+    4. Build UI from schemas + permissions
+    ```
+
+    Use the permissions response to drive UI visibility dynamically:
+
+    **Form-level visibility** (from `permissionsMap`):
+    - Form not in `permissionsMap` (and `fullAccess` is `false`) → do not show that section
+    - No `WRITE` action → hide create and edit controls
+    - No `DELETE` action → hide delete controls
+    - `readOnly: true` → show all forms as read-only regardless of `permissionsMap`
+    - `fullAccess: true` → show all forms and all actions
+    - `scope: OWN` or `null` on a form → server already filters records; UI does not need to add client-side filters
+    - `scope: ALL` → user sees all records
+
+    **Management page visibility** (from top-level flags):
+    - `allowManagePermissions: true` → show the role permissions management page (Form Permissions table + Sign Up Policy / User Management / Role & Permission toggles)
+      - Init: `GET /uma/apps/{appId}/iam/roles-permissions?role={selectedRole}`, cross-join result with schemas already in memory
+      - Save: `POST /uma/apps/{appId}/iam/roles-permissions` — send full permissions object including `version`
+    - `allowManageSignUpPolicy: true` → show the sign-up policy page (Registration Type, Registration Status, Allowed Domains, Roles)
+      - Init: `GET /uma/apps/{appId}/iam/sign-up-policy`
+      - Save: `POST /uma/apps/{appId}/iam/sign-up-policy` — send full policy object including `version`
+    - `allowManageUsers: true` → show the user management page
+
+    See `UMA_REFERENCE.md` Section 2.4 for complete request/response shapes and UI element → field mappings for each management page.
+
+    Never hardcode which forms, actions, or management pages a role can access — always derive the UI from the permissions response. It is the single source of truth.
+
+    **Schema-driven field rendering — required rules:**
+
+    Schemas and permissions are fetched once at login and stored in app-level context or state. Never re-fetch per component — treat them as the stable source of truth for the entire session.
+
+    ```
+    // Good — fetch once at startup, store in context
+    const { schemas, permissions } = useAppContext()
+
+    // Bad — fetches on every render, causes unnecessary network calls
+    const { data: schema } = useQuery(['schema'], fetchSchema)
+    ```
+
+    When rendering any form or detail view, always check the schema before rendering each field:
+
+    - **Never hardcode field labels** — always use `field.fieldDisplays['en']` from the schema
+    - **Never hardcode `required`** — always read `field.validateRequired` from the schema
+    - **Never hardcode field order** — render fields in the order the schema returns them
+    - **If a field no longer exists in the schema** — skip it silently, do not crash
+
+    Conceptual pattern:
+
+    ```tsx
+    // Designer controls layout and component choice — intentional, domain-specific
+    // Schema controls existence, label, required, and type — always read live
+
+    {schema.hasField('fullName') && (
+      <TextInput
+        label={schema.field('fullName').fieldDisplays['en']}
+        required={schema.field('fullName').validateRequired}
+      />
+    )}
+    {schema.hasField('status') && (
+      <StatusSelector
+        label={schema.field('status').fieldDisplays['en']}
+        required={schema.field('status').validateRequired}
+      />
+    )}
+    ```
+
+    This means:
+    - A field deprecated in UMA disappears from the UI automatically on next login — no code change needed
+    - A display label updated in UMA is reflected immediately — no code change needed
+    - A field made required in UMA is enforced in the UI automatically — no code change needed
+    - Layout, component type, and domain-specific UX remain under the agent's/designer's control
+
     - Embed `tenantId` and `appId` as hardcoded constants (both are known at dev-time).
     - Wire all `/uma/*` data calls with `Authorization: Bearer <token>` using the token determined in Phase 4.
     - **Do not hardcode host/port values in the generated code.** Browser-based apps (React, Vue, etc.) cannot read `uma.env` directly. Instead, generate a `.env` file in the project root using the values from `uma.env`:
@@ -569,8 +821,8 @@ Only proceed to Phase 3 after the user confirms. If the user requests changes, u
         ```
         Access in code as `process.env.REACT_APP_UMA_HOST`
     - Add the generated `.env` to `.gitignore`. It contains the same values as `uma.env` and should not be committed.
-13. Implement UI or handlers for all entities: list, create, edit, delete, as appropriate for the domain. For delete handlers, follow the mandatory delete check above.
-14. Use `POST .../records:query` for any search, filter, or paginated views (Section 7.6). Read `UMA_REFERENCE.md` Section 2.3 for query format details.
+14. Implement UI or handlers for all entities: list, create, edit, delete, as appropriate for the domain. For delete handlers, follow the mandatory delete check above.
+15. Use `POST .../records:query` for any search, filter, or paginated views (Section 7.6). Read `UMA_REFERENCE.md` Section 2.3 for query format details.
 
 ---
 
@@ -697,8 +949,21 @@ Never attempt to create both schemas simultaneously with cross-references — th
    If you skip this step and make changes based on assumptions,
    you risk silently breaking existing data and workflows.
 
-2. Internally complete the Conflict Check — follow the ⛔ MANDATORY block at the top of this guide.
-3. Merge new fields into the existing fields map
+2. Internally complete the Conflict Check (do not show to user):
+
+   [INTERNAL — NOT SHOWN TO USER]
+   Schemas read: [list]
+   Fields with protected evolutionNotes: [list each field and its note, or "none"]
+   Conflicts found: YES / NONE
+   If YES — conflict detail: [explain]
+
+   ⛔ HARD STOP — do not proceed until this check is complete.
+
+3. If Conflicts found is NONE — proceed silently. Do not mention the conflict check.
+4. If Conflicts found is YES — show the user only a plain-language warning. No technical field names, no system terms, no internal notes. Describe only what the user would see or lose in business terms. Follow the language rules in Step 6 of the mandatory block above.
+
+   Wait for explicit user confirmation before continuing.
+4. Merge new fields into the existing fields map
 5. PUT /uma/apps/{appId}/schemas/{formId}  → submit full updated schema
    (always include existing non-deprecated fields to prevent accidental deprecation)
    (include updated semantic in the PUT body — there is no PATCH for schema semantics)
@@ -739,9 +1004,26 @@ Read `UMA_REFERENCE.md` Section 2.3 for full query, filter, sort, and aggregatio
 
 ### 7.7 Automatic Error Recovery
 
-Handle the following errors silently — fix and retry without surfacing to the user. See Section 3 for full recovery details on each.
+The agent must handle the following errors without surfacing them to the user:
 
-`HTTP 401`, `DUPLICATED_APPS`, `DUPLICATED_SCHEMA`, `APP_NOT_EXIST`, `SCHEMA_NOT_EXIST`, `VERSION_CONFLICT`, `VERSION_IS_MISSING`, `APP_IS_DEPRECATED`, `SCHEMA_IS_DEPRECATED`, `FIELD_IS_DEPRECATED`, `INVALID_ENUM_VALUE`, `INVALID_TYPE`, `FIELD_TYPE_CHANGED_NOT_ALLOWED`, `SCHEMA_LINKED_ERROR`, `SCHEMA_RELATED_ERROR`, `VALIDATION_FAILED`
+| Error | Auto-Recovery |
+|-------|--------------|
+| `HTTP 401` | Re-authenticate and retry. |
+| `DUPLICATED_APPS` | App already exists. Use existing. Do not re-create. |
+| `DUPLICATED_SCHEMA` | Schema already exists. Fetch it and merge changes via PUT. |
+| `APP_NOT_EXIST` | Create the app, then retry original operation. |
+| `SCHEMA_NOT_EXIST` | Create the schema, then retry original operation. |
+| `VERSION_CONFLICT` | Fetch the current resource (app, schema, or record) to get its `version`, then retry. |
+| `VERSION_IS_MISSING` | Fetch the current resource, extract `version`, add to request body, then retry. |
+| `APP_IS_DEPRECATED` | Call `PATCH /apps/{appId}/restore`, then retry. |
+| `SCHEMA_IS_DEPRECATED` | Call `PATCH /schemas/{formId}/restore`, then retry. |
+| `FIELD_IS_DEPRECATED` | Call `PATCH /schemas/{formId}/fields/{fieldId}/restore`, then retry. |
+| `INVALID_ENUM_VALUE` | Read `allowedValues` from error response. Use a valid value and retry. |
+| `INVALID_TYPE` | Read `expectedType` from error response. Fix `fieldType` and retry. |
+| `FIELD_TYPE_CHANGED_NOT_ALLOWED` | Do not change type. Deprecate the existing field and add a new field with a new `fieldId` of the desired type. Prompt user if semantic notes flag the field as critical. |
+| `SCHEMA_LINKED_ERROR` | Verify `refFormId` exists. Fix `fieldMode`/`selectedFieldIds` per field rules. Retry. |
+| `SCHEMA_RELATED_ERROR` | Add a LINKED field to the referenced schema pointing back to this form, then retry. |
+| `VALIDATION_FAILED` | Read `details.violations`. Each entry has `field` and `message`. Fix the listed fields and retry. |
 
 ### 7.8 Semantic Integrity Rule
 

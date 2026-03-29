@@ -8,12 +8,17 @@
 
 This project uses UMA as the backend data layer.
 
-**STOP — before any planning or coding:**
-For every user request that involves schemas, data, fields, or features:
-1. Read `uma.env` to get `UMA_APP_ID`.
-2. Call `GET /uma/apps/{UMA_APP_ID}/schemas` — read the full response.
-3. For each schema the request touches, call `GET /uma/apps/{UMA_APP_ID}/schemas/{formId}` and read all `semantic.evolutionNotes` and `semantic.constraints` at schema and field level.
-4. Only then propose a plan. Never plan from memory or assumptions.
+**STOP — before any planning or coding, no exceptions:**
+
+1. Read `uma.env`. If `UMA_DASHBOARD_CREDENTIALS` is blank — ask for the API key and write it before doing anything else.
+2. Authenticate with UMA Dashboard (Section 1.1 of `UMA_AGENT_GUIDE.md`) and obtain a token.
+3. Read `UMA_APP_ID` from `uma.env`.
+   - **If `UMA_APP_ID` is blank** — this is a new project. ⛔ Do NOT write any code, files, or plans. Follow the Master Build Workflow (Section 7.0 of `UMA_AGENT_GUIDE.md`) — design and build the data model in UMA first, then generate frontend code.
+   - **If `UMA_APP_ID` is present** — call `GET /uma/apps/{UMA_APP_ID}/schemas` and read the full response before proceeding.
+4. For each schema the request touches, read all `semantic.evolutionNotes` and `semantic.constraints` at schema and field level.
+5. Only then propose a plan. Never plan from memory or assumptions.
+
+⛔ **Writing any file, creating any folder, or generating any code before completing steps 1–4 is a violation of these instructions.**
 
 Read and follow the full guide:
 

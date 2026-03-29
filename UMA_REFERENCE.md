@@ -7,11 +7,11 @@
 
 ## Table of Contents
 
-- [1. Runtime Auth Endpoints](#1-runtime-auth-endpoints)
 - [2. API Endpoints](#2-api-endpoints)
   - [2.1 Apps](#21-apps--umaapps)
   - [2.2 Schemas](#22-schemas--umaappsappidschemas)
   - [2.3 Form Data](#23-form-data--umaappsappidformformid)
+  - [2.4 Sign-Up Policy & Role Permissions](#24-sign-up-policy--role-permissions)
 - [4. Field Types](#4-field-types)
 - [5. Field Attributes](#5-field-attributes)
   - [5.1 Base Attributes](#51-base-attributes-all-field-types)
@@ -34,149 +34,6 @@
   - [6.1 The semantic Object](#61-the-semantic-object)
   - [6.2 Attribute Definitions](#62-attribute-definitions)
   - [6.3 Semantic-Driven Evolution Rules](#63-semantic-driven-evolution-rules)
-
----
-
-## 1. Runtime Auth Endpoints
-
-These endpoints are provided by the **UMA-APP service** for end-user authentication. They are automatically available once an app is created — no extra configuration required.
-
-Include `tenantId` and `appId` in every request body. Both are known at development time.
-
-**204 No Content:** Endpoints 1.2, 1.3, 1.4, and 1.5 return `HTTP 204` with no response body on success. Do not call `res.json()` on these — guard against it: `if (res.status === 204) return {}`.
-
----
-
-### 1.1 Sign Up
-
-```
-POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/users
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "password": "userpassword",
-  "firstName": "Thomas",
-  "lastName": "Lam",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-After successful signup, the server sends a verification email. The user must verify before they can log in.
-
----
-
-### 1.2 Verify Email
-
-```
-POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/users/verification-codes
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "code": "266066",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-The `code` is sent to the user's email after signup. The UI should provide an input field for it.
-
----
-
-### 1.3 Resend Verification Email
-
-```
-POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/users/verification-codes/resend
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
----
-
-### 1.4 Password Reset Request
-
-```
-POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/password-reset-requests
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-The server sends a reset code to the user's email. Use it in the next step.
-
----
-
-### 1.5 Password Reset
-
-```
-POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/password-resets
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "newPassword": "newpassword",
-  "code": "130449",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-The `code` comes from the reset email sent in step 1.4. The UI should collect email, code, and new password on the same form.
-
----
-
-### 1.6 Login
-
-```
-POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/auth/sessions
-Content-Type: application/json
-```
-
-```json
-{
-  "authType": "PASSWORD",
-  "email": "user@example.com",
-  "password": "userpassword",
-  "tenantId": "tnt_1f8e2jur",
-  "appId": "ChurchManagement"
-}
-```
-
-**Response:**
-
-```json
-{
-  "data": {
-    "userId": "usr_d78d835a",
-    "token": "eyJ...",
-    "tokenType": "Bearer",
-    "tenantId": "tnt_1f8e2jur"
-  }
-}
-```
-
-Store `data.token` as the session token. Include it as `Authorization: Bearer <data.token>` on every subsequent `/uma/*` data call. On `HTTP 401`, prompt the user to log in again.
 
 ---
 
@@ -363,7 +220,7 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
         "fieldId": {
           "fieldId": "string",
           "fieldType": "TEXT",
-          "fieldDisplays": { "EN": "Display Name" },
+          "fieldDisplays": { "en": "Display Name" },
           "allowMultiple": false,
           "required": false,
           "validateRequired": false,
@@ -417,6 +274,7 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
   "appId": "ProductCatalog",
   "formId": "Customer",
   "description": "Customer account records",
+  "ownerScoped": false,
   "semantic": {
     "intent": "Persist all customer identity and contact information",
     "meaning": "A person or organization that has created an account",
@@ -429,7 +287,7 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
     "fullName": {
       "fieldId": "fullName",
       "fieldType": "TEXT",
-      "fieldDisplays": { "EN": "Full Name" },
+      "fieldDisplays": { "en": "Full Name" },
       "required": true,
       "validateRequired": true,
       "length": 200,
@@ -444,7 +302,7 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
     "email": {
       "fieldId": "email",
       "fieldType": "EMAIL",
-      "fieldDisplays": { "EN": "Email Address" },
+      "fieldDisplays": { "en": "Email Address" },
       "required": true,
       "validateRequired": true,
       "semantic": {
@@ -459,6 +317,12 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
   }
 }
 ```
+
+**Schema-level attributes:**
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ownerScoped` | boolean | `false` | If `true`, UMA automatically records the `userId` of the creator on every data record saved to this form. All retrieval endpoints (GET list, GET single, and query) filter results to only return records owned by the currently logged-in user, unless the user's role has `scope: ALL` in its role permissions for this form. If `false` or not set, all records are visible to all users regardless of role `scope`. |
 
 **Response:** `HTTP 201` with the created schema object.
 
@@ -514,6 +378,8 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
 ### 2.3 Form Data — `/uma/apps/{appId}/form/{formId}`
 
 Data records stored for a given schema. Each record has system fields plus a `data` map containing the field values.
+
+> ⚠️ **No `data` wrapper on form data endpoints.** Responses from `/uma/apps/{appId}/form/...` are returned at the top level — `{ "items": [...] }` or a single record object directly. Do NOT access `response.data` — access `response` directly. This is different from auth and permissions endpoints (UMA-APP / UMA-Dashboard services) which DO wrap their responses in `{ "data": { ... } }`.
 
 ---
 
@@ -823,6 +689,460 @@ Only these types are LIKE-searchable inside a referenced record:
 
 ---
 
+### 2.4 Sign-Up Policy & Role Permissions
+
+#### Naming Legend
+
+The API identifier names in this section do not obviously describe what they do. Always use this table to resolve what a name means before reading or writing any code:
+
+| Portal Label | API Identifier | Response field in `GET /permissions` | What it controls |
+|---|---|---|---|
+| Form Permissions | `permissionsMap` (in role permissions) | `permissionsMap` | What each role can READ / WRITE / DELETE per form |
+| Sign Up Policy Management | `sign-up-policy-management-permissions` | `allowManageSignUpPolicy` | Which roles can read or update the sign-up policy |
+| Role & Permission | `form-management-permissions` | `allowManagePermissions` | **Master permission** — which roles can manage role permissions AND grant/revoke both management rights |
+| User Management | *(documented separately)* | `allowManageUsers` | Which roles can manage users |
+
+> ⚠️ **`form-management-permissions` is misleadingly named.** Despite sounding like it only relates to forms, it is the **master IAM permission** — a role with this right can manage role permissions, grant/revoke sign-up policy management access, and grant/revoke this right itself. If no role has this right enabled, all permission management at runtime is read-only and can only be recovered via the UMA portal.
+
+---
+
+#### What Guards What
+
+| To access this at runtime | The role needs this right | Check this field in `GET /permissions` |
+|---|---|---|
+| `GET/POST /uma/apps/{appId}/iam/sign-up-policy` | `sign-up-policy-management-permissions` | `allowManageSignUpPolicy: true` |
+| `GET/POST /uma/apps/{appId}/iam/roles-permissions` | `form-management-permissions` | `allowManagePermissions: true` |
+| `GET/POST /uma/apps/{appId}/iam/sign-up-policy-management-permissions` | `form-management-permissions` | `allowManagePermissions: true` |
+| `GET/POST /uma/apps/{appId}/iam/form-management-permissions` | `form-management-permissions` | `allowManagePermissions: true` |
+| `GET /uma/apps/{appId}/permissions` | None — available to any logged-in user | — |
+
+---
+
+#### Access Paths
+
+All management endpoints are available via two paths depending on the caller:
+
+| Caller | Service | Base path | Auth |
+|---|---|---|---|
+| Tenant (AI agent, dev time) | UMA-APP | `http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/...` | Dev token |
+| App user with management right (runtime) | UMA | `http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/...` | User Bearer token |
+
+The tenant always has full access regardless of role settings. App users need the specific right enabled for their role.
+
+---
+
+#### Sign-Up Policy
+
+Controls who is allowed to register for the app.
+
+**Object fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | string | `PUBLIC` — any valid email can sign up. `DOMAIN` — only emails from `allowedDomains` can sign up. |
+| `status` | string | `OPEN` — sign-up is allowed. `CLOSE` — sign-up is disabled entirely. |
+| `allowedDomains` | array of strings | Required and non-empty when `type` is `DOMAIN`. Ignored when `type` is `PUBLIC`. |
+| `defaultRole` | string | Role automatically assigned to every new user on sign-up. Must exist in `roles`. |
+| `roles` | array of strings | All roles defined for this app. This is the role registry — a role must be in this list to be usable anywhere in the system. |
+
+**Default policy auto-created when app is created:**
+
+```
+status: OPEN
+type: PUBLIC
+defaultRole: ADMIN
+roles: [ADMIN]
+allowedDomains: []
+```
+
+**Dev time (tenant) — via UMA-APP service:**
+
+```
+GET  http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/sign-up-policy?tenantId={tenantId}&appId={appId}
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/sign-up-policy
+Authorization: Bearer <devToken>
+```
+
+**Runtime (app user) — requires `allowManageSignUpPolicy: true` in `GET /permissions` (Sign Up Policy Management / `sign-up-policy-management-permissions`):**
+
+```
+GET  http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/sign-up-policy
+POST http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/sign-up-policy
+Authorization: Bearer <userToken>
+```
+
+GET response / POST request body:
+
+```json
+{
+  "tenantId": "tnt_1vzaisck",
+  "appId": "DentalBooking",
+  "type": "PUBLIC",
+  "status": "OPEN",
+  "allowedDomains": [],
+  "defaultRole": "ADMIN",
+  "roles": ["ADMIN"]
+}
+```
+
+**Constraint:** If `type` is `DOMAIN`, `allowedDomains` must be non-empty — returns `SIGN_UP_POLICY_DOMAIN_MISSING` otherwise.
+
+**Common sign-up policy patterns:**
+
+| Business need | `status` | `type` | `allowedDomains` |
+|---|---|---|---|
+| Open to anyone | `OPEN` | `PUBLIC` | `[]` |
+| Company staff only (self-register) | `OPEN` | `DOMAIN` | `["company.com"]` |
+| Invite only | `CLOSE` | any | any |
+
+**Invite-only flow** — when `status: CLOSE`, self-registration is disabled entirely. A staff member with `allowManageUsers: true` creates accounts manually via the User Management endpoints. After account creation, the system automatically sends a verification email to the new user. The user verifies their email, resets their password, and can then log in. This covers the full invite-only onboarding pattern without any additional configuration.
+
+---
+
+#### Sign-Up Error Codes
+
+Returned by `POST /uma-app/auth/users` when the sign-up policy rejects the request:
+
+| HTTP | Error Code | Cause |
+|---|---|---|
+| 412 | `SIGN_UP_POLICY_MISSING` | No sign-up policy exists for this app |
+| 403 | `SIGN_UP_CLOSE` | Sign-up policy `status` is `CLOSE` |
+| 400 | `SIGN_UP_INVALIDATE_EMAIL` | Email format is invalid |
+| 403 | `SIGN_UP_INVALIDATE_DOMAIN` | Email domain is not in `allowedDomains` |
+| 412 | `SIGN_UP_POLICY_DOMAIN_MISSING` | `type` is `DOMAIN` but `allowedDomains` is empty |
+| 412 | `SIGN_UP_DEFAULT_ROLE_MISSING` | `defaultRole` is not set on the policy |
+| 412 | `SIGN_UP_POLICY_NO_ROLES` | `roles` is empty on the policy |
+| 400 | `SIGN_UP_INVALID_ROLE` | Role in request is not in the `roles` list |
+| 412 | `ROLES_NOT_FOUND` | Role referenced does not exist |
+
+---
+
+#### Role Permissions
+
+Controls what each role can do per form (schema).
+
+**Object fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `role` | string | The role name. Must exist in the sign-up policy `roles` list. |
+| `permissionsMap` | object | Map of `formId → Permissions`. Ignored when `fullAccess` is `true`. |
+| `fullAccess` | boolean | If `true`, role has unlimited access to all forms including newly created schemas. `permissionsMap` is empty. |
+| `readOnly` | boolean | If `true`, role can only READ across all forms regardless of `permissionsMap`. |
+
+**`Permissions` object** (value in `permissionsMap`):
+
+| Field | Type | Description |
+|---|---|---|
+| `actions` | array of strings | Allowed actions: `READ`, `WRITE`, `DELETE` |
+| `scope` | string or null | `OWN` or `null` — user sees only records they created. `ALL` — user sees all records. Only applies when the form schema has `ownerScoped: true`. If `ownerScoped` is `false` or not set, all records are visible regardless of `scope`. |
+
+**Default ADMIN role permissions auto-created when app is created:**
+
+```
+fullAccess: true
+readOnly: false
+allowManageUsers: true
+allowManagePermissions: true
+allowManageSignUpPolicy: true
+```
+
+Because `fullAccess: true`, the ADMIN role automatically gains access to all new schemas without any permission updates.
+
+**Dev time (tenant) — via UMA-APP service:**
+
+```
+GET  http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/roles-permissions?tenantId={tenantId}&appId={appId}&role={role}
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/roles-permissions
+Authorization: Bearer <devToken>
+```
+
+**Runtime (app user) — requires `allowManagePermissions: true` in `GET /permissions` (Role & Permission / `form-management-permissions`):**
+
+```
+GET  http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/roles-permissions?role={role}
+POST http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/roles-permissions
+Authorization: Bearer <userToken>
+```
+
+GET response / POST request body:
+
+```json
+{
+  "tenantId": "tnt_1vzaisck",
+  "appId": "DentalBooking",
+  "role": "USER",
+  "permissionsMap": {
+    "Order": {
+      "actions": ["READ", "WRITE", "DELETE"],
+      "scope": "OWN"
+    },
+    "Product": {
+      "actions": ["READ"],
+      "scope": "ALL"
+    }
+  },
+  "fullAccess": false,
+  "readOnly": false
+}
+```
+
+**Note:** Non-`fullAccess` roles must be explicitly updated with permissions for every new schema added to the app.
+
+---
+
+#### Management Access Rights
+
+Controls which roles can manage sign-up policy and role permissions at runtime. There are two management rights — see the **Naming Legend** and **What Guards What** tables above before reading this section.
+
+The tenant always has full access to all management endpoints regardless of role settings.
+
+---
+
+**Sign Up Policy Management** (`sign-up-policy-management-permissions`) — grants a role the ability to read and update the sign-up policy:
+
+| Protected endpoint | Description |
+|---|---|
+| `GET/POST /uma/apps/{appId}/iam/sign-up-policy` | Read or update the sign-up policy |
+
+Dev time (tenant):
+
+```
+GET  http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/sign-up-policy-management-permissions?role={role}
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/sign-up-policy-management-permissions
+Authorization: Bearer <devToken>
+```
+
+Runtime (app user — requires `allowManagePermissions: true` in `GET /permissions`):
+
+```
+GET  http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/sign-up-policy-management-permissions?role={role}
+POST http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/sign-up-policy-management-permissions
+Authorization: Bearer <userToken>
+```
+
+---
+
+**Role & Permission** (`form-management-permissions`) — the master permission right, grants a role the ability to manage all permissions at runtime:
+
+| Protected endpoint | Description |
+|---|---|
+| `GET/POST /uma/apps/{appId}/iam/roles-permissions` | Read or update role permissions |
+| `GET/POST /uma/apps/{appId}/iam/form-management-permissions` | Grant/revoke this right for other roles |
+| `GET/POST /uma/apps/{appId}/iam/sign-up-policy-management-permissions` | Grant/revoke sign-up policy management right for other roles |
+
+Dev time (tenant):
+
+```
+GET  http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/form-management-permissions?role={role}
+POST http://{UMA_APP_HOST}:{UMA_APP_PORT}/uma-app/form-management-permissions
+Authorization: Bearer <devToken>
+```
+
+Runtime (app user — requires `allowManagePermissions: true` in `GET /permissions`):
+
+```
+GET  http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/form-management-permissions?role={role}
+POST http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/form-management-permissions
+Authorization: Bearer <userToken>
+```
+
+**Request body** (same shape for all POST management access endpoints):
+
+```json
+{
+  "role": "ADMIN",
+  "allowed": true
+}
+```
+
+**Response:**
+
+```json
+{
+  "data": {
+    "tenantId": "tnt_1vzaisck",
+    "appId": "OnlineStore",
+    "role": "ADMIN",
+    "allowed": true
+  }
+}
+```
+
+> ⚠️ **Lockout warning:** If no role has `form-management-permissions: true`, all permission management at runtime becomes read-only — no logged-in user can change any permissions or access rights. The only way to recover is for the tenant to use the UMA portal (`/uma-app/` endpoints), since the tenant always has full access regardless of role settings.
+
+---
+
+#### User Permissions (Runtime)
+
+Returns the permissions for the currently logged-in user. The server resolves the user's role from the Bearer token — the frontend does not need to know or pass the role explicitly. No special permission required — available to any logged-in user.
+
+> ⚠️ **Response wrapper rule — read before writing any code:**
+> - Auth and permissions endpoints (UMA-APP / UMA-Dashboard services) → response is wrapped: `response.data.fieldName`
+> - Form data endpoints (`/uma/apps/{appId}/form/...`) → response is NOT wrapped: `response.items`, `response.totalCount` directly
+>
+> Never assume all endpoints follow the same pattern. Always check which service the endpoint belongs to.
+
+```
+GET http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/permissions
+Authorization: Bearer <userToken>
+```
+
+**Response** (wrapped in `data`, same as all other endpoints):
+
+```json
+{
+  "data": {
+    "role": "ADMIN",
+    "permissionsMap": {
+      "Order": {
+        "actions": ["READ", "WRITE", "DELETE"]
+      },
+      "Category": {
+        "actions": ["READ", "WRITE", "DELETE"],
+        "scope": "ALL"
+      }
+    },
+    "fullAccess": false,
+    "readOnly": false,
+    "allowManagePermissions": true,
+    "allowManageSignUpPolicy": true,
+    "allowManageUsers": true,
+    "updatedAt": "2026-03-26T23:32:26.803-04:00",
+    "version": 74,
+    "_id": "69bb3d8657ab26a3ac417c9b"
+  }
+}
+```
+
+| Response Field | Description |
+|---|---|
+| `role` | The role assigned to the logged-in user |
+| `permissionsMap` | Map of `formId → Permissions`. Only forms the user has access to are included. |
+| `fullAccess` | If `true`, user has unlimited access to all forms. `permissionsMap` will be empty. |
+| `readOnly` | If `true`, user can only READ across all forms regardless of `permissionsMap`. |
+| `scope` | Only present in a `permissionsMap` entry when the form has `ownerScoped: true`. `OWN` or `null` = own records only. `ALL` = all records. |
+| `allowManagePermissions` | If `true`, user can access the role permissions management page and grant/revoke all management rights for any role. Corresponds to the **Role & Permission** (`form-management-permissions`) right. |
+| `allowManageSignUpPolicy` | If `true`, user can view and edit the sign-up policy page. Corresponds to the **Sign Up Policy Management** (`sign-up-policy-management-permissions`) right. |
+| `allowManageUsers` | If `true`, user can manage app users. Corresponds to the **User Management** right. |
+| `updatedAt` | ISO timestamp of the last permissions update. |
+| `version` | Optimistic lock version of the permissions record. |
+| `_id` | Internal record ID. |
+
+**Agent use:** Call this immediately after login during frontend initialization. This is the single source of truth for everything the UI needs — form-level permissions, management page access, and the user's role. Do not make additional calls to determine what the user can see or do.
+
+---
+
+#### Frontend: Management Page Implementation
+
+Use the following pattern to initialize and save each management page. The `GET /uma/apps/{appId}/permissions` response (already fetched during app init) determines which pages are accessible.
+
+---
+
+**Permissions Management Page** — requires `allowManagePermissions: true`
+
+To initialize, fetch the selected role's permissions:
+
+```
+GET http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/roles-permissions?role={selectedRole}
+Authorization: Bearer <userToken>
+```
+
+Cross-join with schemas already loaded from `GET /uma/apps/{appId}/schemas` to build the Form Permissions table:
+
+```ts
+for each schema in schemas:
+  row = rolePerms.permissionsMap[schema.formId] ?? { actions: [], scope: null }
+```
+
+UI element → response field mapping:
+
+| UI element | Response field |
+|---|---|
+| Sign Up Policy Management toggle | `allowManageSignUpPolicy` |
+| User Management toggle | `allowManageUsers` |
+| Role & Permission toggle | `allowManagePermissions` |
+| Read Only toggle | `readOnly` |
+| Full Access column | `fullAccess` |
+| Per-form Read / Write / Delete checkboxes | `permissionsMap[formId].actions` |
+| Per-form Scope dropdown | `permissionsMap[formId].scope` — only show when schema has `ownerScoped: true`, otherwise show `—` |
+
+To save, POST the full updated permissions object:
+
+```
+POST http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/roles-permissions
+Authorization: Bearer <userToken>
+```
+
+```json
+{
+  "role": "ADMIN",
+  "version": 74,
+  "allowManageSignUpPolicy": true,
+  "allowManageUsers": true,
+  "allowManagePermissions": true,
+  "readOnly": false,
+  "fullAccess": false,
+  "permissionsMap": {
+    "Category": { "actions": ["READ", "WRITE", "DELETE"], "scope": "ALL" },
+    "Customer":  { "actions": ["READ", "WRITE", "DELETE"] },
+    "Product":   { "actions": ["READ", "WRITE", "DELETE"] }
+  }
+}
+```
+
+Rules:
+- `version` is required — take it from the GET response to avoid `VERSION_CONFLICT`
+- Send the **full** `permissionsMap` — omitting a form removes its permissions
+- `scope` only applies when the form schema has `ownerScoped: true`; omit or null it otherwise
+- `fullAccess: true` overrides all `permissionsMap` entries — table checkboxes are irrelevant when this is on
+
+---
+
+**Sign-Up Policy Page** — requires `allowManageSignUpPolicy: true`
+
+To initialize, fetch the sign-up policy:
+
+```
+GET http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/sign-up-policy
+Authorization: Bearer <userToken>
+```
+
+UI element → response field mapping:
+
+| UI element | Response field |
+|---|---|
+| Registration Type (Public / Domain Restricted) | `type`: `PUBLIC` / `DOMAIN` |
+| Allowed Domains chips | `allowedDomains` — only relevant when `type: DOMAIN` |
+| Registration Status (Open / Closed) | `status`: `OPEN` / `CLOSE` |
+| Roles list | `roles` |
+| Default role selector | `defaultRole` |
+
+To save:
+
+```
+POST http://{UMA_HOST}:{UMA_PORT}/uma/apps/{appId}/iam/sign-up-policy
+Authorization: Bearer <userToken>
+```
+
+```json
+{
+  "version": 12,
+  "type": "DOMAIN",
+  "status": "OPEN",
+  "allowedDomains": ["tetonsoft.com"],
+  "defaultRole": "MANAGER",
+  "roles": ["MANAGER", "ADMIN"]
+}
+```
+
+Rules:
+- `version` is required — take it from the GET response
+- If `type` is `DOMAIN`, `allowedDomains` must be non-empty — returns `SIGN_UP_POLICY_DOMAIN_MISSING` otherwise
+- `defaultRole` must exist in `roles`
+
+---
+
 ## 4. Field Types
 
 The `fieldType` string in a field definition determines its behavior and accepted attributes. It is set at creation and **cannot be changed**.
@@ -857,7 +1177,7 @@ Present on every field regardless of type.
 |-----------|------|---------|-------------|
 | `fieldId` | string | required | Unique identifier within the schema. **Immutable after creation.** |
 | `fieldType` | string | required | Field type (see Section 4). **Immutable after creation.** |
-| `fieldDisplays` | object | optional | Display labels keyed by language code (e.g., `{ "EN": "Full Name" }`) |
+| `fieldDisplays` | object | optional | Display labels keyed by language code (e.g., `{ "en": "Full Name" }`) |
 | `allowMultiple` | boolean | `false` | Whether the field accepts an array of values |
 | `required` | boolean | `false` | Whether the field is structurally required |
 | `validateRequired` | boolean | `false` | Whether the server validates the value is non-null on save |
@@ -1031,7 +1351,7 @@ No additional schema-level attributes beyond base. The field definition requires
 {
   "fieldId": "attachment",
   "fieldType": "FILE",
-  "fieldDisplays": { "EN": "Attachment" },
+  "fieldDisplays": { "en": "Attachment" },
   "validateRequired": false
 }
 ```

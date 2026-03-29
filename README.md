@@ -575,7 +575,7 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
         "fieldId": {
           "fieldId": "string",
           "fieldType": "TEXT",
-          "fieldDisplays": { "EN": "Display Name" },
+          "fieldDisplays": { "en": "Display Name" },
           "allowMultiple": false,
           "required": false,
           "validateRequired": false,
@@ -641,7 +641,7 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
     "fullName": {
       "fieldId": "fullName",
       "fieldType": "TEXT",
-      "fieldDisplays": { "EN": "Full Name" },
+      "fieldDisplays": { "en": "Full Name" },
       "required": true,
       "validateRequired": true,
       "length": 200,
@@ -656,7 +656,7 @@ A **Schema** defines the structure of a form (analogous to a table definition). 
     "email": {
       "fieldId": "email",
       "fieldType": "EMAIL",
-      "fieldDisplays": { "EN": "Email Address" },
+      "fieldDisplays": { "en": "Email Address" },
       "required": true,
       "validateRequired": true,
       "semantic": {
@@ -1161,7 +1161,7 @@ Present on every field regardless of type.
 |-----------|------|---------|-------------|
 | `fieldId` | string | required | Unique identifier within the schema. **Immutable after creation.** |
 | `fieldType` | string | required | Field type (see Section 4). **Immutable after creation.** |
-| `fieldDisplays` | object | optional | Display labels keyed by language code (e.g., `{ "EN": "Full Name" }`) |
+| `fieldDisplays` | object | optional | Display labels keyed by language code (e.g., `{ "en": "Full Name" }`) |
 | `allowMultiple` | boolean | `false` | For **LINKED** and **EMBED** fields: enforced at runtime — sending an array when `false` returns `SINGLE_VALUE_ONLY`. For all other types (TEXT, NUMERIC, etc.): metadata only — the server stores whatever value is passed; `allowMultiple` is not validated. |
 | `required` | boolean | `false` | Client-side/display hint only. The server does **not** reject null values based on this flag alone. Use this to communicate to UI generators that the field should be shown as required. |
 | `validateRequired` | boolean | `false` | Server-enforced. When `true`, the server rejects the request if this field is null or absent in `data`. Set `validateRequired: true` whenever the field must genuinely be non-null at write time. |

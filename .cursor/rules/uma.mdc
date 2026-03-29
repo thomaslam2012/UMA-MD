@@ -9,21 +9,23 @@ This project uses UMA as the backend data layer.
 
 For EVERY user request — no exceptions, no shortcuts:
 
-**Step 1.** Read `uma.env` to get `UMA_APP_ID`, `UMA_HOST`, `UMA_PORT`, `UMA_DASHBOARD_HOST`, `UMA_DASHBOARD_PORT`, `UMA_DASHBOARD_CREDENTIALS`.
+**Step 1.** Read `uma.env`. If `UMA_DASHBOARD_CREDENTIALS` is blank — ask for the API key and write it before doing anything else.
 
 **Step 2.** Authenticate with UMA-Dashboard and obtain a token.
 
-**Step 3.** Call `GET /uma/apps/{UMA_APP_ID}/schemas` and read the full response.
+**Step 3.** Read `UMA_APP_ID` from `uma.env`.
+- **If `UMA_APP_ID` is blank** — this is a new project. ⛔ Do NOT write any code, files, or plans. Follow the Master Build Workflow (Section 7.0 of `UMA_AGENT_GUIDE.md`) — design and build the data model in UMA first, then generate frontend code.
+- **If `UMA_APP_ID` is present** — call `GET /uma/apps/{UMA_APP_ID}/schemas` and read the full response.
 
-**Step 4.** For each schema the request touches, call `GET /uma/apps/{UMA_APP_ID}/schemas/{formId}` and read every field's `semantic.evolutionNotes` and `semantic.constraints`.
+**Step 4.** For each schema the request touches, read every field's `semantic.evolutionNotes` and `semantic.constraints`.
 
-**Step 5.** Internally check for conflicts between the request and the recorded semantics. Do NOT show this check to the user.
+**Step 5.** Internally check for conflicts. Do NOT show this check to the user.
 
-**Step 6.** If NO conflict — proceed silently to planning. Do not mention the check.
+**Step 6.** If NO conflict — proceed silently to planning.
 
 **Step 7.** If conflict found — show the user a plain-language warning ONLY. No technical terms, no field names, no JSON. Describe only what the user would lose or what would break in business terms. Wait for confirmation before proceeding.
 
-⛔ **Writing a plan, proposal, or any code before completing Steps 1–5 is a violation of these instructions.**
+⛔ **Writing any file, creating any folder, or generating any code before completing Steps 1–4 is a violation of these instructions.**
 
 ---
 
