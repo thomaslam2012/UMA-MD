@@ -253,6 +253,8 @@ Auto-populated with current user's ID.
 
   Used as a machine-readable spec guard — before implementing new features, consult semantic fields on affected app/schemas/fields to detect conflicts with existing business rules.
 
+  **Always populate `semantic` on every app, schema, and field during Phase 2. Do not leave it empty.**
+
 ---
 
 ## Phase 3 — Generate Runtime Frontend Code
