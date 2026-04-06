@@ -1,246 +1,468 @@
-# Project Instructions
+# UMA Frontend Generation Workflow
 
-<!--
-  DO NOT run /init on this project.
-  Running /init will overwrite this file and the agent will lose the UMA guide.
-  If this file is accidentally overwritten, copy CLAUDE.md from the UMA-MD template folder.
--->
+Build a frontend app backed by UMA. Follow the three-phase workflow strictly.
 
-This project uses UMA as the backend data layer.
+## Base URLs
 
-**STOP — before any planning or coding, no exceptions:**
+```
+UMA           = http://localhost:8080
+UMA-DASHBOARD = http://localhost:8081
+UMA-APP-AUTH  = http://localhost:8082
+```
 
-1. Read `uma.env`. If `UMA_DASHBOARD_CREDENTIALS` is blank — ask for the API key and write it before doing anything else.
-2. Authenticate with UMA Dashboard (Section 1.1 of `UMA_AGENT_GUIDE.md`) and obtain a token.
-3. Read `UMA_APP_ID` from `uma.env`.
-   - **If `UMA_APP_ID` is blank** — this is a new project. ⛔ Do NOT write any code, files, or plans. Follow the Master Build Workflow (Section 7.0 of `UMA_AGENT_GUIDE.md`) — design and build the data model in UMA first, then generate frontend code.
-   - **If `UMA_APP_ID` is present** — call `GET /uma/apps/{UMA_APP_ID}/schemas` and read the full response before proceeding.
-4. For each schema the request touches, read all `semantic.evolutionNotes` and `semantic.constraints` at schema and field level.
-5. Only then propose a plan. Never plan from memory or assumptions.
+## Auth Header (all UMA/DASHBOARD calls after login)
 
-⛔ **Writing any file, creating any folder, or generating any code before completing steps 1–4 is a violation of these instructions.**
+```
+Authorization: Bearer <jwt>
+```
 
-Read and follow the full guide:
+---
 
-@UMA_AGENT_GUIDE.md
+## Phase 1 — Developer Login (get JWT for Phases 2)
 
-Never hardcode any host, port, or credential values in generated code.
+Prompt user for their API key, then:
 
-## Semantic Quality Standard
+**POST** `UMA-DASHBOARD/uma-dashboard/auth/sessions`
+```json
+{ "authType": "API_KEY", "apiCredentials": "<api_key>" }
+```
+Response:
+```json
+{
+  "data": {
+    "userId": "...", "tenantId": "...", "token": "<JWT>",
+    "tokenType": "Bearer", "userType": "OWNER|ADMIN|AI|APPS"
+  }
+}
+```
+Store: `jwt`, `tenantId`. Use `Authorization: Bearer <jwt>` for all Phase 2 calls.
 
-⛔ You are not permitted to submit any `POST` or `PUT` for an app, schema, or field without semantics that answer what breaks without it — not just what it is. Before submitting, apply the questions in Section 7.3 of `UMA_AGENT_GUIDE.md` for that level. Vague notes like "do not modify without care" or "used by the system" must be rewritten before submitting. This is not optional — without high-quality semantics, every future safety check UMA performs is blind.
+---
 
-## React + TanStack Query — Client Cache Security Rules
+## Phase 2 — Design Data Model
 
-**Apply these rules only when generating a React frontend that uses TanStack Query.**
+### Create App
+**POST** `UMA/uma/apps`
+```json
+{
+  "appId": "my-app",
+  "appName": "My Application",
+  "description": "optional"
+}
+```
+Response: AppInfoDto with same fields + `id`, `createdAt`, `updatedAt`, `deprecated`, `version`.
+Store: `appId`.
 
-TanStack Query's in-memory cache persists across user sessions within the same browser tab. If cache is not cleared on logout, a subsequent user will see the previous user's data even if the API correctly returns 403.
+### List Schemas
+**GET** `UMA/uma/apps/{appId}/schemas?includeDeprecated=false`
+Response: `{ "items": [...FormSchemaDto], "count": N, "totalCount": N, "page": 0, "pageSize": 0 }`
 
-### Rule 1 — Always clear the query cache on logout
-Every logout handler must call `queryClient.clear()` before navigating away.
-```ts
-function handleLogout() {
-  logout()
-  queryClient.clear()
-  navigate('/login')
+### Create Schema
+**POST** `UMA/uma/apps/{appId}/schemas/{formId}`
+```json
+{
+  "appId": "my-app",
+  "formId": "customers",
+  "description": "optional",
+  "ownerScoped": false,
+  "fields": {
+    "<fieldId>": { ...FormField... }
+  }
+}
+```
+`appId` + `formId` in body must match path params.
+Response: FormSchemaDto (201).
+
+### Update / Delete / Restore Schema
+- **PUT**   `UMA/uma/apps/{appId}/schemas/{formId}` — same body as POST (200)
+- **DELETE** `UMA/uma/apps/{appId}/schemas/{formId}` — soft delete (204)
+- **PATCH**  `UMA/uma/apps/{appId}/schemas/{formId}/restore` — restore (204)
+
+### Field Operations
+- **DELETE** `UMA/uma/apps/{appId}/schemas/{formId}/fields/{fieldId}` — soft delete field (204)
+- **PATCH**  `UMA/uma/apps/{appId}/schemas/{formId}/fields/{fieldId}/restore` — restore field (204)
+
+---
+
+## Schema Field Types
+
+All fields share these base properties:
+```json
+{
+  "fieldId": "name",
+  "fieldType": "...",
+  "required": false,
+  "validateRequired": false,
+  "allowMultiple": false,
+  "deprecated": false,
+  "fieldDisplays": { "en": "Display Name" }
 }
 ```
 
-### Rule 2 — Clear cache on 401/403 via global interceptor
-Implement in the Axios interceptor, not in individual query handlers.
-```ts
-axiosInstance.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      logout()
-      queryClient.clear()
-      navigate('/login')
+### TEXT
+```json
+{ "fieldType": "TEXT", "fieldId": "name", "regexPattern": "optional regex", "length": 100 }
+```
+
+### NUMERIC
+```json
+{ "fieldType": "NUMERIC", "fieldId": "age", "decimalPlaces": 2, "range": "0,150" }
+```
+`range` format: `"min,max"`.
+
+### BOOLEAN
+```json
+{ "fieldType": "BOOLEAN", "fieldId": "active" }
+```
+Accepts: `true`, `false`, `"true"`, `"false"`, `1`, `0`.
+
+### DATE
+```json
+{ "fieldType": "DATE", "fieldId": "birthDate", "datePattern": "ISO_LOCAL_DATE" }
+```
+Input: `"yyyy-MM-dd"` string.
+`datePattern` values: `ISO_LOCAL_DATE`, `SLASH_DATE`, `DASH_DATE`, `SLASH_DAY_FIRST`, `DASH_MONTH_FIRST`, `SLASH_MONTH_FIRST`, `LONG_DATE`, `MEDIUM_DATE`
+
+### DATE_TIME
+```json
+{ "fieldType": "DATE_TIME", "fieldId": "createdAt", "dateTimePattern": "ISO_LOCAL_DATE_TIME" }
+```
+Input: `"yyyy-MM-dd'T'HH:mm:ss"`.
+`dateTimePattern` values: `ISO_LOCAL_DATE_TIME`, `ISO_LOCAL_DATE`, `ISO_LOCAL_TIME`, `DATE_TIME_AMPM_1`–`DATE_TIME_AMPM_11`, `DATE_TIME_24H_1`–`DATE_TIME_24H_4`
+
+### TIME
+```json
+{ "fieldType": "TIME", "fieldId": "startTime", "timePattern": "ISO_LOCAL_TIME" }
+```
+Input: `"HH:mm:ss"`.
+`timePattern` values: `ISO_LOCAL_TIME`, `HOURS_MINUTES_24H`, `HOURS_MINUTES_AMPM`, `HOURS_MINUTES_SECONDS_AMPM`
+
+### EMAIL
+```json
+{ "fieldType": "EMAIL", "fieldId": "email" }
+```
+
+### URL
+```json
+{ "fieldType": "URL", "fieldId": "website" }
+```
+
+### MONEY
+```json
+{
+  "fieldType": "MONEY", "fieldId": "price",
+  "currencyCode": "USD", "fractionDigits": 2,
+  "allowCurrencyOverride": false, "allowFractionDigitsOverride": false
+}
+```
+`currencyCode` values: `USD`, `EUR`, `JPY`, `GBP`, `AUD`
+Record value: `{ "centAmount": 1999, "currencyCode": "USD", "fractionDigits": 2 }`
+
+### FILE
+```json
+{ "fieldType": "FILE", "fieldId": "attachment" }
+```
+Max 5 MB. Record value: `{ "bytesBase64": "<base64>", "contentType": "image/png" }`
+
+### SEQUENCE
+```json
+{
+  "fieldType": "SEQUENCE", "fieldId": "invoiceNumber",
+  "prefix": "INV", "separator": "-", "length": 8
+}
+```
+**`length` = total chars of output string** (prefix + separator + digits). `INV-0001` = 8.
+`length - prefix.length() - separator.length()` must be > 0 or `SCHEMA_FIELD_TYPE_ERROR`.
+Values auto-incremented; system formats as `{prefix}{separator}{zero-padded-number}`.
+
+### UNIQUE
+```json
+{
+  "fieldType": "UNIQUE", "fieldId": "trackingCode",
+  "prefix": "TRK", "separator": "-", "length": 10
+}
+```
+Same `length` rule as SEQUENCE. Generates random (not sequential) numeric suffix automatically; no input needed when writing records.
+
+### LINKED (reference with embedded data)
+```json
+{
+  "fieldType": "LINKED", "fieldId": "customer",
+  "refFormId": "customers",
+  "dataMode": "LIVE",
+  "fieldMode": "FULL",
+  "selectedFieldIds": [],
+  "unique": false
+}
+```
+- `dataMode`: `LIVE` (fetch at read time) | `SNAPSHOT` (capture at write time)
+- `fieldMode`: `FULL` (all fields) | `PARTIAL` (only `selectedFieldIds`)
+- `selectedFieldIds` must be empty when `FULL`, required when `PARTIAL`
+
+Write: provide ObjectId(s) of referenced record(s).
+Read response value:
+```json
+[{ "id": "<objectId>", "_formId": "customers", "name": "Alice", "age": 30 }]
+```
+
+### RELATED (reference without embedded data)
+```json
+{
+  "fieldType": "RELATED", "fieldId": "category",
+  "refFormId": "categories",
+  "fieldMode": "FULL",
+  "selectedFieldIds": []
+}
+```
+No `dataMode`, no `unique`. Same `fieldMode`/`selectedFieldIds` rules as LINKED.
+
+### EMBED (inline nested schema)
+```json
+{
+  "fieldType": "EMBED", "fieldId": "address",
+  "embeddedFormSchema": {
+    "appId": "my-app", "formId": "address-embed",
+    "fields": {
+      "street": { "fieldType": "TEXT", "fieldId": "street" },
+      "city":   { "fieldType": "TEXT", "fieldId": "city" }
     }
-    return Promise.reject(error)
   }
-)
+}
 ```
 
-### Rule 3 — Never silently show stale data on query error
-Always check `isError` and render an error state — never fall back to stale cached data silently.
+### USER_ID
+```json
+{ "fieldType": "USER_ID", "fieldId": "ownerId" }
+```
+Auto-populated with current user's ID.
 
-### Rule 4 — `queryClient` must be accessible at logout time
-Use `useQueryClient()` in the component that owns logout, or pass it into the logout utility. Never call `logout()` without also calling `queryClient.clear()`.
+---
 
-**Checklist before marking any auth feature complete:**
-- [ ] `queryClient.clear()` is called in every logout handler
-- [ ] A global 401/403 interceptor calls `logout()` + `queryClient.clear()` + redirects to `/login`
-- [ ] Every `useQuery` call has an `isError` branch
-- [ ] No logout path exists that skips cache clearing
+## Phase 3 — Generate Runtime Frontend Code
 
-## React + TanStack Table — Records List Patterns
+By this point `tenantId`, `appId`, and all `formId`s are known. Embed them as env vars / constants in generated code.
 
-**Apply these rules only when generating a React frontend that uses TanStack Table.**
+### App User Authentication (UMA-APP-AUTH)
 
-Always use the query endpoint (`POST .../records:query`) for record lists — not the basic GET list endpoint — because it supports sort, filter, and pagination in the request body.
+All UMA-APP-AUTH requests must include `tenantId` and `appId` in the request body (POST) or query params (GET). The service extracts them via `TenantContextFilter`.
 
-**TanStack Table must be set to manual mode** — the server handles all data operations:
-```ts
-manualPagination: true
-manualSorting: true
-manualFiltering: true
+#### Login
+**POST** `UMA-APP-AUTH/uma-app/auth/sessions`
+```json
+{ "authType": "PASSWORD", "email": "...", "password": "...", "tenantId": "...", "appId": "..." }
+```
+Response:
+```json
+{ "data": { "userId": "...", "token": "<JWT>", "tokenType": "Bearer", "tenantId": "..." } }
+```
+Store JWT. Use `Authorization: Bearer <jwt>` for all UMA CRUD calls.
+
+#### Sign Up
+Before showing sign-up form, check policy:
+**GET** `UMA-APP-AUTH/uma-app/auth/sign-up-policy?tenantId={tenantId}&appId={appId}`
+```json
+{
+  "data": {
+    "tenantId": "...", "appId": "...",
+    "type": "PUBLIC|DOMAIN",
+    "allowedDomains": ["example.com"],
+    "status": "OPEN|CLOSE",
+    "defaultRole": "member",
+    "roles": ["member", "admin"]
+  }
+}
+```
+If `status == CLOSE`, do not allow sign-up.
+
+**POST** `UMA-APP-AUTH/uma-app/auth/users`
+```json
+{
+  "firstName": "John", "lastName": "Smith",
+  "email": "john@example.com", "password": "secret123",
+  "tenantId": "...", "appId": "...", "role": "member"
+}
+```
+Response (201): user object with `status: "PENDING"` (email verification required).
+
+#### Email Verification
+**POST** `UMA-APP-AUTH/uma-app/auth/users/verification-codes`
+```json
+{ "email": "...", "code": "123456", "tenantId": "...", "appId": "..." }
+```
+Response: 204
+
+**POST** `UMA-APP-AUTH/uma-app/auth/users/verification-codes/resend`
+```json
+{ "email": "...", "tenantId": "...", "appId": "..." }
+```
+Response: 204
+
+#### Password Reset
+**POST** `UMA-APP-AUTH/uma-app/auth/password-reset-requests`
+```json
+{ "email": "...", "tenantId": "...", "appId": "..." }
+```
+Response: 204
+
+**POST** `UMA-APP-AUTH/uma-app/auth/password-resets`
+```json
+{ "email": "...", "code": "123456", "newPassword": "...", "tenantId": "...", "appId": "..." }
+```
+Response: 204
+
+---
+
+### Dynamic UI — Schema + Permission Driven
+
+After login, call these two endpoints to drive all UI rendering:
+
+**GET** `UMA/uma/apps/{appId}/schemas`
+**GET** `UMA/uma/apps/{appId}/permissions`
+
+Permission response:
+```json
+{
+  "data": {
+    "role": "admin",
+    "permissionsMap": {
+      "customers": { "actions": ["READ","WRITE","DELETE"],"scope": "ALL|OWN","visible": true}
+    },
+    "fullAccess": false,
+    "readOnly": false,
+    "allowManageUsers": true,
+    "allowManagePermissions": false,
+    "allowManageSignUpPolicy": false
+  }
+}
+```
+- `actions`: `READ`, `WRITE`, `DELETE`
+- `scope`: `ALL` (all records) | `OWN` (own records only)
+- `fullAccess: true`: full access to all forms. `readOnly: true`: read-only access to all forms, `permissionsMap` is `{}` (empty).
+- `visible`: controls whether the form shows in the UI sidebar and dashboard.
+
+**Generate UI dynamically from schema fields + permission map.** If schema changes (new fields, new forms, changed permissions), UI must reflect it without code regeneration.
+
+---
+
+### CRUD Endpoints
+
+All require `Authorization: Bearer <app-user-jwt>`.
+
+#### Create Record
+**POST** `UMA/uma/apps/{appId}/form/{formId}`
+```json
+{
+  "appId": "my-app", "formId": "customers", "version": 0,
+  "data": { "name": "Alice", "age": 30 }
+}
+```
+Response (200): FormDataDto
+
+#### Get Record
+**GET** `UMA/uma/apps/{appId}/form/{formId}/records/{recordId}`
+Response: FormDataDto (not wrapped)
+
+#### List Records
+**GET** `UMA/uma/apps/{appId}/form/{formId}?page=0&pageSize=10&includeDeprecated=false`
+Response: `{ "items": [...], "count": N, "totalCount": N, "page": 0, "pageSize": 10 }`
+
+#### Update Record
+**PUT** `UMA/uma/apps/{appId}/form/{formId}/records/{recordId}`
+Body: same as POST. Response: FormDataDto.
+
+#### Delete Record
+**DELETE** `UMA/uma/apps/{appId}/form/{formId}/records/{recordId}` — Response: 200
+
+#### Bulk Delete
+**DELETE** `UMA/uma/apps/{appId}/form/{formId}/records`
+```json
+{ "objectIds": ["<id1>", "<id2>"] }
+```
+Response: 200
+
+#### Query with Filters
+**POST** `UMA/uma/apps/{appId}/form/{formId}/records:query`
+```json
+{
+  "appsId": "my-app",
+  "formId": "customers",
+  "page": 0,
+  "pageSize": 10,
+  "sort": [{ "field": "data.name", "direction": "ASC|DESC" }],
+  "filter": {
+    "operator": "AND",
+    "conditions": [
+      { "field": "data.age", "operator": "GREATER_THAN", "value": 18 },
+      { "field": "data.status", "operator": "EQUALS", "value": "active" }
+    ]
+  }
+}
+```
+Filter field paths: `data.<fieldId>` for record fields; system fields (`_id`, `createdAt`, etc.) by direct name.
+
+**Filter operators:** `EQUALS`, `NOT_EQUALS`, `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `LESS_THAN`, `LESS_THAN_OR_EQUAL`, `IN`, `LIKE`
+**Group operators:** `AND`, `OR` — use with `"conditions": [...]` instead of `"field"`/`"value"`
+
+Optional aggregation (replaces items list in response):
+```json
+{ "aggregation": { "type": "COUNT|SUM|AVG|MIN|MAX", "field": "data.age" } }
 ```
 
-**Page reset** — reset to page 0 whenever sort, filter, or deprecated toggle changes:
-```ts
-useEffect(() => { setPage(0); }, [sorting, globalFilter, showDeprecated]);
+---
+
+## FormDataDto Structure (record response)
+
+```json
+{
+  "id": "<hex objectId>",
+  "appId": "my-app",
+  "formId": "customers",
+  "version": 1,
+  "createdAt": "2024-01-01T00:00:00-05:00",
+  "updatedAt": "2024-01-01T00:00:00-05:00",
+  "createdBy": "<userId>",
+  "updatedBy": "<userId>",
+  "deprecated": false,
+  "data": { "name": "Alice", "age": 30 }
+}
 ```
 
-**Sort mapping** — TanStack Table `SortingState` maps to the API `sort` array:
-```ts
-const apiSort = sorting.map((s) => ({
-  field: s.id,                        // column id must equal fieldId
-  direction: s.desc ? 'DESC' : 'ASC',
-}));
-```
+## Response Wrappers
 
-**TanStack Query key** — include all variables that affect the result so any change triggers a refetch:
-```ts
-queryKey: ['records', appId, formId, showDeprecated, page, apiSort, globalFilter]
-```
-
-## React Frontend — Date / Time Field Handling
-
-**Apply these rules only when generating a React frontend that handles DATE, DATE_TIME, or TIME fields.**
-
-### Rendering (read-only display)
-
-| Condition | Display value |
+| Wrapper | Shape |
 |---|---|
-| Field has a pattern | Show value as-is — server already returns it in pattern format |
-| No pattern DATE | Show raw ISO: `"2026-03-17"` |
-| No pattern DATE_TIME | Show first 16 chars: `"2026-03-17T14:30"` |
-| No pattern TIME | Show raw ISO: `"14:30:00"` |
+| Single item | `{ "data": { ... } }` |
+| List | `{ "items": [...], "count": N, "totalCount": N, "page": N, "pageSize": N }` |
 
-Do not reformat patterned values — the server already returns them formatted.
+## `ownerScoped` on Schema
 
-### Form editing (create / edit)
+When `true`, all record reads/queries for non-superusers are automatically filtered to `createdBy == currentUserId`. Enables row-level security per user.
 
-Use a **text input + hidden native date picker** — do not use `<input type="date">` directly. It renders in browser locale format and ignores the field's pattern.
+---
 
-```
-[ text input — shows value in display format ]  [ calendar icon button ]
-         hidden <input type="date/datetime-local/time">
-         triggered via ref.current?.showPicker()
-```
+## Implementation Notes
 
-Show a placeholder matching the field's configured format so the user knows what to type:
+### SEQUENCE field `length`
+Must be the **total length** of the generated output string (prefix + separator + digits). E.g. `STU-0001` = 8 chars → `length: 8`. Setting `length: 4` when prefix+separator already takes 4 chars fails with `SCHEMA_FIELD_TYPE_ERROR`.
 
-| Pattern | Placeholder |
-|---|---|
-| `SLASH_DATE` | `yyyy/MM/dd` |
-| `DASH_DATE` | `dd-MM-yyyy` |
-| `LONG_DATE` | `Weekday, Mon dd, yyyy` |
-| `DATE_TIME_AMPM_1` | `yyyy-MM-dd hh:mm AM/PM` |
-| `HOURS_MINUTES_AMPM` | `hh:mm AM/PM` |
-| no pattern DATE | `yyyy-MM-dd` |
-| no pattern DATE_TIME | `yyyy-MM-ddTHH:mm` |
-| no pattern TIME | `HH:mm:ss` |
+### TypeScript `verbatimModuleSyntax`
+Always use the `type` keyword for type-only imports: `import { type FormEvent }`, `import { type ReactNode }`.
 
-### Saving (create / update)
+### The permissions endpoint omits `permissionsMap` entirely for admin/full-access users. Always type it as optional (`permissionsMap?: Record<string, FormPermission>`) and access with optional chaining (`permissions.permissionsMap?.[formId]`). Check `fullAccess` first before any map lookup.
 
-Always convert display-format values back to ISO before sending to the server:
+### LINKED/RELATED fields — write vs read
+- **Write (create/update):** send a plain ObjectId string in `data`.
+- **Read (list/get response):** field comes back as a resolved array `[{ "id": "...", "_formId": "...", ...fields }]`.
+- **Edit form pitfall:** `initial.data` is populated from the read response, so LINKED fields already contain resolved arrays. Normalize them back to plain ObjectId strings before submitting, otherwise the PUT sends the full array object instead of an id.
 
-```ts
-// DATE → yyyy-MM-dd
-payload[fieldId] = toHtmlDate(formValue, datePattern);
+### Update `version` field
+Use the record's actual `version` from the GET/list response, not `0`. Sending `0` on update may cause optimistic locking conflicts.
 
-// DATE_TIME → yyyy-MM-ddTHH:mm:ss
-const hv = toHtmlDateTime(formValue, dateTimePattern);
-payload[fieldId] = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(hv) ? `${hv}:00` : hv;
+### DATE/TIME write format
+Pattern only affects read. Write always ISO: `yyyy-MM-dd`, `yyyy-MM-dd'T'HH:mm:ss`, `HH:mm:ss`. Normalize on edit.
 
-// TIME → HH:mm:ss
-const hv = toHtmlTime(formValue, timePattern);
-payload[fieldId] = /^\d{2}:\d{2}$/.test(hv) ? `${hv}:00` : hv;
-```
+### Use `required` in schema to drive `*` indicators in UI forms.
 
-### Search / filter (date range)
+### On 401 response from UMA, clear auth and redirect to `/login
 
-Use `GREATER_THAN_OR_EQUAL` / `LESS_THAN_OR_EQUAL` operators. Send values as-is in the field's display format — matching how the server stores them:
-
-```ts
-{ operator: 'GREATER_THAN_OR_EQUAL', field: fieldId, value: dateFrom }
-{ operator: 'LESS_THAN_OR_EQUAL',    field: fieldId, value: dateTo   }
-```
-
-## React Frontend — LINKED and RELATED Field UI Rules
-
-**Apply these rules only when generating a React frontend.**
-
-### RELATED fields — never show in create/edit forms
-
-RELATED fields are server-computed back-references. The user cannot set them — they are derived automatically. Never render a RELATED field as an input in create or edit forms. Only show them in read-only table or detail views.
-
-In the API response, RELATED fields appear as an **array** of back-referenced records — always iterate over the array when rendering, never treat it as a single value.
-
-### LINKED fields — id is always available
-
-When using `fieldMode: PARTIAL`, the `id` of the referenced record is always returned even if not in `selectedFieldIds`. Use this `id` to fetch the full record when needed — you never lose access to the complete linked record.
-
-### Rendering LINKED and RELATED fields
-
-LINKED and RELATED fields store object references — the API returns the referenced record's data inline. Never display the raw object or a plain ID.
-
-**Table cell preview:**
-- Show the first 2 field values from the first referenced record, joined by ` · `
-- `fieldMode: PARTIAL` — use `selectedFieldIds` order
-- `fieldMode: FULL` — use all non-meta fields in server order
-
-**Overflow badge** — when more fields or records exist than fit in the preview:
-- `+N` — N extra fields on the same record
-- `+N record(s)` — N extra referenced records (RELATED or LINKED with `allowMultiple`)
-
-**Detail view / popover** — show all records and all their fields on expand/hover:
-- Show all non-meta scalar fields only
-- Exclude: `id`, `_id`, `_formId`, `createdAt`, `updatedAt`, `version`, `deprecated`, null/empty values, objects, arrays, booleans
-- Separate multiple records with a divider
-- Use display name resolution from `UMA_REFERENCE.md` Section 5.15 for field labels
-- Fetch the referenced form's schema to get display names (cache the result — it is shared with the search feature)
-
-**fieldMode rendering behaviour:**
-
-| fieldMode | Preview fields | Detail fields |
-|---|---|---|
-| `FULL` | First 2 non-meta scalar fields | All non-meta scalar fields |
-| `PARTIAL` | First 2 of `selectedFieldIds` (scalar only) | All of `selectedFieldIds` (scalar only) |
-
-**RELATED vs LINKED rendering differences:**
-
-| Aspect | LINKED | RELATED |
-|---|---|---|
-| Value shape | Single object or array (if `allowMultiple`) | Always an array |
-| Typical count | 1 (or few) | Many |
-| Edit form | Editable via picker | Read-only |
-| Create form | Editable | Not shown |
-
-**React/TanStack — fetch referenced schema for display names:**
-```ts
-useQueries({
-  queries: linkedFields.map((f) => ({
-    queryKey: ['schema', appId, f.refFormId],
-    queryFn: () => fetchSchema(appId, f.refFormId),
-    staleTime: 5 * 60 * 1000,
-  }))
-})
-```
-
-### Search across LINKED and RELATED fields — React/TanStack implementation
-
-For the general implementation steps that apply to any frontend, see `UMA_REFERENCE.md` Section 2.3.
-
-React-specific: fetch referenced form schemas in parallel using `useQueries` with a 5-minute cache:
-```ts
-useQueries({
-  queries: linkedFields.map((f) => ({
-    queryKey: ['schema', appId, f.refFormId],
-    queryFn: () => fetchSchema(appId, f.refFormId),
-    staleTime: 5 * 60 * 1000,
-  }))
-})
-```
+## Error shape: `{ "error": { "code": "...", "message": "..." } }`. Extract via `err.error.message`, not `err.message`

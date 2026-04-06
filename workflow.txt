@@ -1,0 +1,52 @@
+Build application with UMA as the backend layer. Strictly follow the workflow below
+Development Workflow
+1) Prompt the user for an API key and log in to UMA-DASHBOARD to obtain a JWT, then use it for subsequent endpoint requests during development.
+2) Design and create the data model via UMA endpoints according to the user’s prompt
+3) Generate frontend application code that calls UMA backend endpoints at runtime.
+
+
+UMA-BASE-URL=http://localhost:8080
+UMA-DASHBORD-BASE-URL=http://localhost:8081
+UMA-APP-AUTH-BASE-URL=http://localhost:8082
+
+
+
+1) prompt user for api-key, login with api key 
+POST : UMA-DASHBORD-BASE-URL/uma-dashboard/auth/sessions
+
+2) create data model in UMA
+   - create App : POST 		: UMA-BASE-URL/uma/apps
+   - get schema list : GET 	: UMA-BASE-URL/uma/apps/{appId}/schemas
+   - create schema : POST 	: UMA-BASE-URL/uma/apps/{appId}/schemas/{formId}
+   - updaete schema : PUT 	: UMA-BASE-URL/uma/apps/{appId}/schemas/{formId}
+   - delete schema : DELETE : UMA-BASE-URL/uma/apps/{appId}/schemas/{formId}
+   - restore schema : PATCH : UMA-BASE-URL/uma/apps/{appId}/schemas/{formId}/restore
+
+3) By this point, tenantId, appId, and formId should be known and stored in the application environment. Now Generate runtime frontend Application code with UMA backend endpoint. 
+   - Generate login page
+     * login via POST UMA-APP-AUTH-BASE-URL/uma-app/auth/sessions
+   - Generate the following links on the login page
+     * Sign up : POST  UMA-APP-AUTH-BASE-URL/uma-app/auth/users  When the user clicks the sign-up link, call GET UMA-APP-AUTH-BASE-URL/uma-app/auth/sign-up-policy?tenantId={tnt_1vzaisck}&appId={appId} first to determine if the sign up is open
+   	 * Verification email : POST UMA-APP-AUTH-BASE-URL/uma-app/auth/users/verification-codes
+     * Resend email verficataion code : POST UMA-APP-AUTH-BASE-URL/uma-app/auth/users/verification-codes/resend
+     * Reset password POST UMA-APP-AUTH-BASE-URL/uma-app/auth/password-resets 
+     * Reset password request POST UMA-APP-AUTH-BASE-URL/uma-app/auth/password-reset-requests
+
+   - after user login
+     * call UMA-BASE-URL/uma/apps/{appId}/schemas to get all schemas/form defined in this app
+     * call UMA-BASE-URL/uma/apps/{appId}/permissions to get all the form permission (read, write, delete) for the login user
+     * generate schemas and permission driven UI. The goal is if schemas is changed like add new fields/remove field or add new form/schema or change the form permssion for user, the frontend UI would reflect that without regenerate the code.
+     * generate the logic according to user prompt
+     * use the following for CRUD
+       - GET    : UMA-BASE-URL/uma/apps/{appId}/form/{formId}/records/{recordId}
+       - GET    : UMA-BASE-URL/uma/apps/{appId}/form/{formId}
+       - POST   : UMA-BASE-URL/uma/apps/{appId}/form/{formId}
+       - PUT    : UMA-BASE-URL/uma/apps/{appId}/form/{formId}/records/{recordId}
+       - DELETE : UMA-BASE-URL/uma/apps/{appId}/form/{formId}/records/{recordId}
+       - DELETE : UMA-BASE-URL/uma/apps/{appId}/form/{formId}/records
+       - POST   : UMA-BASE-URL/uma/apps/{appId}/form/{formId}/records:query
+
+
+
+
+  
