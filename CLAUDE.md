@@ -236,6 +236,23 @@ No `dataMode`, no `unique`. Same `fieldMode`/`selectedFieldIds` rules as LINKED.
 ```
 Auto-populated with current user's ID.
 
+## Semantic Metadata
+
+  App, schema, and each field support a `semantic` object for documenting business rules and intent:
+
+  ```json
+  {
+    "intent": "What this entity is for",
+    "meaning": "What it represents semantically",
+    "purpose": "Business purpose",
+    "constraints": ["rule 1", "rule 2"],
+    "behavior": "Expected behavior",
+    "evolutionNotes": "How it may change over time"
+  }
+  ```
+
+  Used as a machine-readable spec guard — before implementing new features, consult semantic fields on affected app/schemas/fields to detect conflicts with existing business rules.
+
 ---
 
 ## Phase 3 — Generate Runtime Frontend Code
@@ -448,7 +465,8 @@ Must be the **total length** of the generated output string (prefix + separator 
 ### TypeScript `verbatimModuleSyntax`
 Always use the `type` keyword for type-only imports: `import { type FormEvent }`, `import { type ReactNode }`.
 
-### The permissions endpoint omits `permissionsMap` entirely for admin/full-access users. Always type it as optional (`permissionsMap?: Record<string, FormPermission>`) and access with optional chaining (`permissions.permissionsMap?.[formId]`). Check `fullAccess` first before any map lookup.
+### `permissionsMap` is optional
+Omitted when `fullAccess: true`. Type as optional (`permissionsMap?: Record<string, FormPermission>`) and access with optional chaining (`permissions.permissionsMap?.[formId]`).
 
 ### LINKED/RELATED fields — write vs read
 - **Write (create/update):** send a plain ObjectId string in `data`.
@@ -463,6 +481,6 @@ Pattern only affects read. Write always ISO: `yyyy-MM-dd`, `yyyy-MM-dd'T'HH:mm:s
 
 ### Use `required` in schema to drive `*` indicators in UI forms.
 
-### On 401 response from UMA, clear auth and redirect to `/login
+### On 401 response from UMA, clear auth and redirect to `/login`
 
-## Error shape: `{ "error": { "code": "...", "message": "..." } }`. Extract via `err.error.message`, not `err.message`
+### Error shape: `{ "error": { "code": "...", "message": "..." } }`. Extract via `err.error.message`, not `err.message`
