@@ -2,6 +2,21 @@
 
 Build a frontend app backed by UMA. Follow the three-phase workflow strictly.
 
+## Normative sources (AI / Cursor)
+
+- This document is **domain-agnostic**: it does **not** assume any specific business (rentals, CRM, health, etc.). The **`appId`**, **`formId`** values, and **schemas** you create in Phase 2 define the domain. Generated UI **MUST** be driven only by those schemas and by **permissions**, not by assumed entities.
+- **Cursor / agents:** also obey **`.cursor/rules/*.mdc`** (always applied in this repo) and **`UMA-COMPLIANCE-CHECKLIST.md`**. Before claiming Phase 3 or frontend work is complete, produce a **checklist status table** (every applicable row: Done / N/A + reason). Do not treat “working demo” as complete if checklist items are unmet.
+- **Single source of truth:** If checklist or rules appear to conflict with this file, **`CLAUDE.md` wins**; update the checklist or rules to match, do not improvise API or workflow behavior.
+
+## Execution Guardrails (Mandatory)
+
+1. MUST follow this file strictly with phase gates.
+2. MUST execute in order: Phase 1 -> Phase 2 -> Phase 3.
+3. MUST ask user for UMA API key before any code changes or scaffolding.
+4. MUST STOP if credentials are missing and wait for user input.
+5. MUST summarize outputs after each phase and wait for explicit user approval before continuing.
+6. MUST NOT scaffold frontend until app and schemas are successfully created in UMA.
+
 ## Base URLs
 
 ```

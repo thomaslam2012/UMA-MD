@@ -1,0 +1,29 @@
+---
+description: UMA three-phase workflow, phase gates, domain-agnostic scope
+alwaysApply: true
+---
+
+# UMA workflow (normative)
+
+## Authority and scope
+
+- **`CLAUDE.md`** at the repo root is the **single source of truth** for UMA APIs, phases, and frontend rules. If anything conflicts, **`CLAUDE.md` wins**.
+- This project is **domain-agnostic**. Do **not** assume a specific industry (e.g. rentals, healthcare, retail). **`appId`**, **`formId`s**, and **schemas** define the business domain. Implement **generically** from schema + permissions.
+- Also follow **`UMA-COMPLIANCE-CHECKLIST.md`** and complete it before claiming frontend work is done.
+
+## Phase order (MUST)
+
+1. **Phase 1** — Developer login (dashboard API key → JWT). **MUST** obtain user approval before Phase 2.
+2. **Phase 2** — Create app and schemas in UMA (no frontend scaffold until this succeeds). **MUST** obtain user approval before Phase 3.
+3. **Phase 3** — Generate/update runtime frontend.
+
+## Hard stops (MUST NOT)
+
+- **MUST NOT** change or scaffold application code until the user provides the **UMA API key** (Phase 1) per `CLAUDE.md`.
+- **MUST NOT** scaffold the frontend until the **app and schemas exist** in UMA (Phase 2 complete).
+- **MUST NOT** skip phase summaries or proceed without **explicit user approval** after each phase.
+- **MUST NOT** hardcode **forms, fields, nav labels, or actions** that should come from **schemas** and **permissions** at runtime.
+
+## After each phase
+
+- Summarize what was done, what IDs/tokens matter, and **stop for explicit approval** before the next phase.
