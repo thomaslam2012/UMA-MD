@@ -253,9 +253,11 @@ No `dataMode`, no `unique`. Same `fieldMode`/`selectedFieldIds` rules as LINKED.
   Stores a userId. Renders as a readonly text input with a lookup icon.
 
   On lookup click, call:
-  GET UMA/uma/apps/{appId}/iam/users?page={page}&pageSize={pageSize}
+  GET UMA/uma/apps/{appId}/users?page={page}&pageSize={pageSize}
 
   Show firstName + lastName in the picker. On select, store userId as the field value.
+  On read: returns { userId, firstName, lastName, email, status } instead of a plain string.
+  On write: send only the userId string. On edit load, extract userId from the response object and display firstName + lastName as the label.
 
 ## Semantic Metadata
 
@@ -299,9 +301,9 @@ By this point `tenantId`, `appId`, and all `formId`s are known. Embed them as en
   - Create/Edit: only if actions includes WRITE
   - Delete: only if actions includes DELETE
   - List: only if actions includes READ
-  - fullAccess: true: all forms visible, skip permissionsMap
-  - readOnly: true: all forms visible, no Write/Delete
-
+  - fullAccess / readOnly control data access (which CRUD actions are allowed).
+  - visible controls UI display (sidebar/nav). They are independent.
+  - Nav must be built by filtering `permissions.data.permissionsMap` where `visible === true`. Never create a NAV_ITEMS array or any hardcoded form list. Use `visible` in UMA to control what appears — never hardcode exclusions in frontend code.
 
 ### App User Authentication (UMA-APP-AUTH)
 
@@ -398,8 +400,8 @@ Response: 204
   ```
   - actions: READ, WRITE, DELETE
   - scope: ALL (all records) | OWN (own records only)
-  - fullAccess: true: all forms visible and fully accessible, permissionsMap is absent
-  - readOnly: true: all forms visible, read-only, permissionsMap is {} (empty)
+  - fullAccess: true: full READ/WRITE/DELETE on all forms
+  - readOnly: true: READ-only on all forms
   - visible: controls whether the form shows in the UI sidebar and dashboard
   - allowManageUsers: user can manage app users
   - allowManagePermissions: user can manage role permissions
@@ -520,9 +522,6 @@ Must be the **total length** of the generated output string (prefix + separator 
 ### TypeScript `verbatimModuleSyntax`
 Always use the `type` keyword for type-only imports: `import { type FormEvent }`, `import { type ReactNode }`.
 
-### `permissionsMap` is optional
-Omitted when `fullAccess: true`. Type as optional (`permissionsMap?: Record<string, FormPermission>`) and access with optional chaining (`permissions.permissionsMap?.[formId]`).
-
 ### LINKED/RELATED fields — write vs read
 - **Write (create/update):** send a plain ObjectId string in `data`.
 - **Read (list/get response):** field comes back as a resolved array `[{ "id": "...", "_formId": "...", ...fields }]`.
@@ -539,6 +538,10 @@ Pattern only affects read. Write always ISO: `yyyy-MM-dd`, `yyyy-MM-dd'T'HH:mm:s
 ### On 401 response from UMA, clear auth and redirect to `/login`
 
 ### Error shape: `{ "error": { "code": "...", "message": "..." } }`. Extract via `err.error.message`, not `err.message`
+
+### User Profile
+  **GET** `UMA/uma/apps/{appId}/user` — response wrapped in `{ "data": { ... } }`, unwrap before use.
+  - Display `firstName`, `lastName`, and `role` at the bottom of the sidebar above Sign Out.
 
 ### Field Type Rendering
   Each field type requires specific UI treatment — never render all fields as plain text inputs.
