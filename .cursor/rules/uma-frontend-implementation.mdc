@@ -1,5 +1,5 @@
 ---
-description: UMA Phase 3 frontend — must match CLAUDE.md implementation details (any domain)
+description: UMA Phase 3 frontend — must match .md/CURSOR.md implementation details (any domain)
 alwaysApply: true
 ---
 
@@ -7,30 +7,30 @@ alwaysApply: true
 
 ## Completion gate
 
-- Before stating Phase 3 (or frontend) work is **complete**, you **MUST** address **every applicable item** in **`UMA-COMPLIANCE-CHECKLIST.md`** in your final reply: a compact table with columns **Requirement | Status (Done / N/A + reason)**. **Silently skipping checklist items is forbidden.**
+- Before stating Phase 3 (or frontend) work is **complete**, you **MUST** address **every applicable item** in **`.md/UMA-COMPLIANCE-CHECKLIST.md`** in your final reply: a compact table with columns **Requirement | Status (Done / N/A + reason)**. **Silently skipping checklist items is forbidden.**
 
 ## Schema + permission driven UI (MUST)
 
 - On **each app-user login**, fetch **`GET .../schemas`** and **`GET .../permissions`** and drive **all** nav, forms, lists, and action buttons from those responses.
-- **Nav / sidebar:** only forms with `visible: true` unless `fullAccess` or `readOnly` per `CLAUDE.md`.
-- **List / Create-Edit / Delete:** gated by **READ / WRITE / DELETE** and `readOnly` / `fullAccess` rules in `CLAUDE.md`.
+- **Nav / sidebar:** only forms with `visible: true` unless `fullAccess` or `readOnly` per `.md/CURSOR.md`.
+- **List / Create-Edit / Delete:** gated by **READ / WRITE / DELETE** and `readOnly` / `fullAccess` rules in `.md/CURSOR.md`.
 - **Fields:** render only by iterating **`schema.fields`** — no hardcoded field lists for app forms.
 
 ## Field types (MUST NOT use generic text for these)
 
-Implement **dedicated** controls per **`CLAUDE.md` → Field Type Rendering** and the per-type sections:
+Implement **dedicated** controls per **`.md/CURSOR.md` → Field Type Rendering** and the per-type sections:
 
 - **TEXT / NUMERIC / BOOLEAN / DATE / DATE_TIME / TIME / EMAIL / URL** — appropriate controls and validation hints; **BOOLEAN** = toggle or checkbox; dates = pickers; respect **`required`** for `*` in UI.
 - **MONEY** — currency-formatted input **with symbol prefix**; read/write **`centAmount` / `currencyCode` / `fractionDigits`** as specified.
 - **FILE** — upload dropzone, **max 5 MB**, payload shape per spec.
 - **SEQUENCE / UNIQUE** — **readonly**, never user-editable.
-- **LINKED / RELATED** — record picker (search/select from **`refFormId`**); **on write** send plain ObjectId string; **on read** normalize resolved arrays back to ids before **PUT** (see `CLAUDE.md` Implementation Notes).
+- **LINKED / RELATED** — record picker (search/select from **`refFormId`**); **on write** send plain ObjectId string; **on read** normalize resolved arrays back to ids before **PUT** (see `.md/CURSOR.md` Implementation Notes).
 - **USER_ID** — readonly display + lookup; **`GET .../iam/users`** picker; **firstName + lastName** in picker; store **userId**; handle **expanded user object** on read in lists and edit state.
 - **EMBED** — inline nested section per embedded schema (not a single text input).
 
 ## Auth (UMA-APP-AUTH) when exposed in UI
 
-- Every call **MUST** include **`tenantId`** and **`appId`** (body or query) as in `CLAUDE.md`.
+- Every call **MUST** include **`tenantId`** and **`appId`** (body or query) as in `.md/CURSOR.md`.
 - **Sign-up:** **`GET sign-up-policy` first**; if **`status == CLOSE`**, do not offer sign-up; enforce **DOMAIN** rules if applicable; then create user, verification, resend, and password reset flows **as documented** if those screens exist.
 
 ## API behavior (MUST)
@@ -38,7 +38,7 @@ Implement **dedicated** controls per **`CLAUDE.md` → Field Type Rendering** an
 - **401:** clear app auth and redirect to **`/login`** (or equivalent route).
 - Errors: use **`response.error.message`** (i.e. the `message` inside the **`error`** object), not a generic top-level `message` string.
 - **PUT** uses record **`version`** from the server, not `0`.
-- **DATE/TIME writes:** ISO formats per `CLAUDE.md` regardless of display pattern.
+- **DATE/TIME writes:** ISO formats per `.md/CURSOR.md` regardless of display pattern.
 
 ## TypeScript
 
@@ -46,4 +46,4 @@ Implement **dedicated** controls per **`CLAUDE.md` → Field Type Rendering** an
 
 ## Phase 2 reminder
 
-- If you create or change UMA schemas in Phase 2, **`semantic` objects** on app, schema, and fields **MUST NOT be empty** per `CLAUDE.md`.
+- If you create or change UMA schemas in Phase 2, **`semantic` objects** on app, schema, and fields **MUST NOT be empty** per `.md/CURSOR.md`.

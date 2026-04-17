@@ -5,7 +5,7 @@ Build a frontend app backed by UMA. Follow the three-phase workflow strictly.
 ## Normative sources (AI / Cursor)
 
 - This document is **domain-agnostic**: it does **not** assume any specific business (rentals, CRM, health, etc.). The **`appId`**, **`formId`** values, and **schemas** you create in Phase 2 define the domain. Generated UI **MUST** be driven only by those schemas and by **permissions**, not by assumed entities.
-- **Cursor / agents:** also obey **`.cursor/rules/*.mdc`** (always applied in this repo) and **`UMA-COMPLIANCE-CHECKLIST.md`**. Before claiming Phase 3 or frontend work is complete, produce a **checklist status table** (every applicable row: Done / N/A + reason). Do not treat “working demo” as complete if checklist items are unmet.
+- **Cursor / agents:** also obey **`.cursor/rules/*.mdc`** (always applied in this repo), including **`ui-quality.mdc`**, and **`UMA-COMPLIANCE-CHECKLIST.md`**. Before claiming Phase 3 or frontend work is complete, produce a **checklist status table** (every applicable row: Done / N/A + reason). Do not treat “working demo” as complete if checklist items are unmet.
 - **Single source of truth:** If checklist or rules appear to conflict with this file, **`CLAUDE.md` wins**; update the checklist or rules to match, do not improvise API or workflow behavior.
 
 ## Execution Guardrails (Mandatory)
@@ -284,30 +284,16 @@ No `dataMode`, no `unique`. Same `fieldMode`/`selectedFieldIds` rules as LINKED.
 
 By this point `tenantId`, `appId`, and all `formId`s are known. Embed them as env vars / constants in generated code.
 
-
-### Schema + Permission Driven UI
-
-  Never hardcode fields, forms, nav items, or buttons. All UI derived at runtime.
-
-  Fetch on every login:
-
-  - GET UMA/uma/apps/{appId}/schemas → form fields and types
-  - GET UMA/uma/apps/{appId}/permissions → visibility and actions
-
-  Rules:
-
-  - Nav/sidebar: only forms where visible: true
-  - Fields: always iterate schema.fields
-  - Create/Edit: only if actions includes WRITE
-  - Delete: only if actions includes DELETE
-  - List: only if actions includes READ
-  - fullAccess / readOnly control data access (which CRUD actions are allowed).
-  - visible controls UI display (sidebar/nav). They are independent.
-  - Nav must be built by filtering `permissions.data.permissionsMap` where `visible === true`. Never create a NAV_ITEMS array or any hardcoded form list. Use `visible` in UMA to control what appears — never hardcode exclusions in frontend code.
-
 ### App User Authentication (UMA-APP-AUTH)
 
 All UMA-APP-AUTH requests must include `tenantId` and `appId` in the request body (POST) or query params (GET). The service extracts them via `TenantContextFilter`.
+
+Generate these pages:
+- `/login` — email + password form. Links to: Sign Up (if policy `status` is `OPEN`), Resend Verification Email, Forgot Password.
+- `/sign-up` — check policy first; if `status == CLOSE`, do not show sign-up. Use `defaultRole` from policy response.
+- `/verify` — shown after sign-up; code input + resend link.
+- `/forgot-password` — email input to request reset code.
+- `/reset-password` — code + new password form.
 
 #### Login
 **POST** `UMA-APP-AUTH/uma-app/auth/sessions`
@@ -374,38 +360,91 @@ Response: 204
 Response: 204
 
 ---
+### Dynamic UI — Schema + Permission Driven UI
 
-### Dynamic UI — Schema + Permission Driven
+Never hardcode fields, forms, nav items, or buttons. All UI derived at runtime.
 
-  After login, call these two endpoints to drive all UI rendering:
+After login, fetch these two endpoints to drive all UI rendering:
 
-  **GET** `UMA/uma/apps/{appId}/schemas`
-  **GET** `UMA/uma/apps/{appId}/permissions`
+**GET** `UMA/uma/apps/{appId}/schemas` — relevant response shape for UI generation:
 
-  Permission response:
   ```json
   {
-    "data": {
-      "role": "admin",
-      "permissionsMap": {
-        "customers": { "actions": ["READ","WRITE","DELETE"], "scope": "ALL|OWN", "visible": true }
-      },
-      "fullAccess": false,
-      "readOnly": false,
-      "allowManageUsers": true,
-      "allowManagePermissions": false,
-      "allowManageSignUpPolicy": false
-    }
+    "items": [
+      {
+        "formId": "...",
+        "deprecated": false,
+        "fields": {
+          "<fieldId>": {
+            "fieldId": "...",
+            "fieldType": "...",
+            "fieldDisplays": { "en": "Label" },
+            "required": true,
+            "deprecated": false,
+            "allowMultiple": false
+          }
+        }
+      }
+    ]
   }
   ```
-  - actions: READ, WRITE, DELETE
-  - scope: ALL (all records) | OWN (own records only)
-  - fullAccess: true: full READ/WRITE/DELETE on all forms
-  - readOnly: true: READ-only on all forms
-  - visible: controls whether the form shows in the UI sidebar and dashboard
-  - allowManageUsers: user can manage app users
-  - allowManagePermissions: user can manage role permissions
-  - allowManageSignUpPolicy: user can manage sign-up policy
+- Skip any form or field where `deprecated: true`
+- For `EMBED` fields, recurse into `embeddedFormSchema.fields` using the same structure
+- All other properties (`semantic`, `version`, `createdAt`, `id`, `description`, etc.) are not used for UI generation
+
+**GET** `UMA/uma/apps/{appId}/permissions`
+
+Permission response:
+
+    ```json
+    {
+      "data": {
+        "role": "admin",
+        "permissionsMap": {
+          "customers": { "actions": ["READ","WRITE","DELETE"], "scope": "ALL|OWN", "visible": true }
+        },
+        "fullAccess": false,
+        "readOnly": false,
+        "allVisible": false,
+        "allowManageUsers": true,
+        "allowManagePermissions": false,
+        "allowManageSignUpPolicy": false
+      }
+    }
+    ```
+Permission fields:
+
+Per-form fields (inside permissionsMap.<formId>):
+- actions: READ, WRITE, DELETE
+- visible: controls whether the form shows in the UI sidebar and dashboard
+
+Top-level fields (check these first — if true, skip per-form fields):
+- fullAccess: true → treat all forms as READ/WRITE/DELETE regardless of permissionsMap
+- readOnly: true → treat all forms as READ-only regardless of permissionsMap
+- allVisible: true → treat all forms as visible in sidebar/nav regardless of permissionsMap
+
+Rules:
+- Fields: always iterate schema.fields
+- List: show only if actions includes READ
+- Create/Edit: show only if actions includes WRITE
+- Delete: show only if actions includes DELETE
+- visible is independent of fullAccess/readOnly — allVisible only affects sidebar visibility, not CRUD access
+- Nav must be built by filtering permissions.data.permissionsMap where visible === true. Never create a NAV_ITEMS array or any hardcoded form list. Use visible in UMA to control what appears — never hardcode exclusions in frontend code.
+
+---
+
+### UI Quality Standard — Modern, Production-Ready
+
+This project requires a polished UI quality baseline in addition to functional correctness.
+
+- Use a consistent, reusable design system (shared primitives + tokens), not ad-hoc page styling.
+- Preserve clear visual hierarchy with consistent typography, spacing, and grouped form/list sections.
+- Implement complete UX states: loading, empty, error, success, disabled, and read-only.
+- Ensure accessibility baseline: keyboard navigation, visible focus styles, semantic labels, and sufficient contrast.
+- Maintain responsive behavior across mobile/tablet/desktop layouts.
+- Avoid unstyled native controls as final UI output.
+
+Refer to **`.cursor/rules/ui-quality.mdc`** for normative requirements.
 
 ---
 
@@ -446,35 +485,34 @@ Body: same as POST. Response: FormDataDto.
 Response: 200
 
 #### Query with Filters
-**POST** `UMA/uma/apps/{appId}/form/{formId}/records:query`
-```json
-{
-  "appsId": "my-app",
-  "formId": "customers",
-  "page": 0,
-  "pageSize": 10,
-  "sort": [{ "field": "data.name", "direction": "ASC|DESC" }],
-  "filter": {
-    "operator": "AND",
-    "conditions": [
-      { "field": "data.age", "operator": "GREATER_THAN", "value": 18 },
-      { "field": "data.status", "operator": "EQUALS", "value": "active" }
-    ]
+
+**POST** `/uma/apps/{appId}/form/{formId}/records:query`
+
+**Request body:**
+  ```json
+  {
+    "page": 0,
+    "pageSize": 10,
+    "sort": [{ "field": "fieldId", "direction": "ASC|DESC" }],
+    "filter": {
+      "operator": "AND",
+      "conditions": [
+        { "field": "fieldId", "operator": "EQUALS", "value": "active" },
+        { "field": "age", "operator": "GREATER_THAN", "value": 18 }
+      ]
+    }
   }
-}
 ```
-Filter field paths: `data.<fieldId>` for record fields; system fields (`_id`, `createdAt`, etc.) by direct name.
+Field paths:
+- Regular fields: fieldId directly (e.g. "dealName")
+- LINKED/RELATED sub-fields: "fieldId.subFieldId" (e.g. "owner.name")
+- System fields: direct name (e.g. "_id", "createdAt")
 
-**Filter operators:** `EQUALS`, `NOT_EQUALS`, `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `LESS_THAN`, `LESS_THAN_OR_EQUAL`, `IN`, `LIKE`
-**Group operators:** `AND`, `OR` — use with `"conditions": [...]` instead of `"field"`/`"value"`
+Leaf operators: EQUALS, NOT_EQUALS, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, IN, LIKE
+- LIKE uses regex syntax: ".*searchTerm.*"
 
-Optional aggregation (replaces items list in response):
-```json
-{ "aggregation": { "type": "COUNT|SUM|AVG|MIN|MAX", "field": "data.age" } }
-```
-
+Group operators: AND, OR — use "conditions": [...] instead of "field"/"value". Can be nested.
 ---
-
 ## FormDataDto Structure (record response)
 
 ```json

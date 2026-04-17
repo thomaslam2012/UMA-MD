@@ -7,9 +7,9 @@ alwaysApply: true
 
 ## Authority and scope
 
-- **`CLAUDE.md`** at the repo root is the **single source of truth** for UMA APIs, phases, and frontend rules. If anything conflicts, **`CLAUDE.md` wins**.
+- **`.md/CURSOR.md`** is the **single source of truth** for UMA APIs, phases, and frontend rules. If anything conflicts, **`.md/CURSOR.md` wins**.
 - This project is **domain-agnostic**. Do **not** assume a specific industry (e.g. rentals, healthcare, retail). **`appId`**, **`formId`s**, and **schemas** define the business domain. Implement **generically** from schema + permissions.
-- Also follow **`UMA-COMPLIANCE-CHECKLIST.md`** and complete it before claiming frontend work is done.
+- Also follow **`.md/UMA-COMPLIANCE-CHECKLIST.md`** and complete it before claiming frontend work is done.
 
 ## Phase order (MUST)
 
@@ -19,7 +19,7 @@ alwaysApply: true
 
 ## Hard stops (MUST NOT)
 
-- **MUST NOT** change or scaffold application code until the user provides the **UMA API key** (Phase 1) per `CLAUDE.md`.
+- **MUST NOT** change or scaffold application code until the user provides the **UMA API key** (Phase 1) per `.md/CURSOR.md`.
 - **MUST NOT** scaffold the frontend until the **app and schemas exist** in UMA (Phase 2 complete).
 - **MUST NOT** skip phase summaries or proceed without **explicit user approval** after each phase.
 - **MUST NOT** hardcode **forms, fields, nav labels, or actions** that should come from **schemas** and **permissions** at runtime.

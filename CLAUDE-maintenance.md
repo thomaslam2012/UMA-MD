@@ -2,6 +2,13 @@
 
 For adding features, fixing bugs, and modifying existing apps. The app, schemas, and auth flows already exist — focus only on what changed.
 
+## Communication Rule
+
+Always explain in business and domain language unless the user explicitly asks something technical.
+
+**Good:** "This field tracks which staff member is responsible for the appointment."
+**Not this:** "This is a USER_ID field that stores a userId string linked to the users collection."
+
 ## CRITICAL RULES — Read First
 
 - **NEVER read frontend code to answer questions about the system, data model, or business logic.** Always go to UMA semantic fields first.
@@ -100,11 +107,15 @@ Query body supports `filter`, `sort`, and `aggregation`. Filter field paths: `da
 
 `GET UMA/uma/apps/{appId}/permissions`
 
+Per-form fields (inside permissionsMap.<formId>):
 - `actions`: READ, WRITE, DELETE
 - `scope`: ALL | OWN
 - `visible`: controls sidebar/nav display
-- `fullAccess` / `readOnly`: override all per-form actions
-- `allowManageUsers` / `allowManagePermissions` / `allowManageSignUpPolicy`
+
+Top-level fields (check these first — if true, skip per-form fields):
+- `fullAccess: true` → treat all forms as READ/WRITE/DELETE regardless of permissionsMap
+- `readOnly: true` → treat all forms as READ-only regardless of permissionsMap
+- `allVisible: true` → treat all forms as visible in sidebar/nav regardless of permissionsMap
 
 Rules: show nav only if `visible: true`, Create/Edit only if WRITE, Delete only if DELETE, List only if READ.
 

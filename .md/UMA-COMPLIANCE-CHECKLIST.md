@@ -97,6 +97,21 @@ Use this with **`CLAUDE.md`** and **`.cursor/rules/`**. Mark each row **Done**, 
 
 ---
 
+## I. UI quality (modern, production-ready)
+
+| # | Requirement |
+|---|-------------|
+| I1 | Shared design system used (reusable primitives + shared tokens for spacing/type/color/radius/shadow) |
+| I2 | No default-looking raw controls in final UI; controls are consistently styled across pages |
+| I3 | Visual hierarchy is clear (readable headings, section grouping, spacing rhythm, consistent action placement) |
+| I4 | Complete states implemented where applicable: loading, empty, error, success, disabled, read-only |
+| I5 | Validation UX is inline and actionable (field-level errors/help, not only generic top-level errors) |
+| I6 | Responsive behavior verified for mobile/tablet/desktop (no broken layouts or clipped actions) |
+| I7 | Accessibility baseline met: keyboard navigation, visible focus, semantic labels, sufficient contrast |
+| I8 | Destructive actions are visually distinct and protected with confirmation for high-risk operations |
+
+---
+
 ## Phase 2 (schema design) — when agents touch UMA schemas
 
 | # | Requirement |

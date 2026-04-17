@@ -1,0 +1,47 @@
+---
+description: Modern production-grade UI quality gate for UMA frontend generation
+alwaysApply: true
+---
+
+# UI quality gate (normative)
+
+## Purpose
+
+- Generated UI MUST be production-ready by default, not scaffold-grade.
+- These requirements apply in addition to `.md/CURSOR.md` and other `.cursor/rules/*.mdc` files.
+- If this file conflicts with `.md/CURSOR.md`, **`.md/CURSOR.md` wins**.
+
+## Design system baseline (MUST)
+
+- MUST use a consistent design system with reusable primitives for: button, input, textarea, select, checkbox/switch, modal/dialog, table/list, toast/alert, empty state, and loading state.
+- MUST use shared design tokens (or equivalent constants) for spacing, typography scale, radius, colors, and shadows.
+- MUST keep visual behavior consistent across pages (same field heights, spacing rhythm, and action placement patterns).
+
+## Layout and visual hierarchy (MUST)
+
+- MUST provide clear information hierarchy with readable headings, section grouping, and balanced whitespace.
+- MUST constrain content width for readability on large screens and remain fully usable on mobile/tablet.
+- MUST provide polished containers (cards/panels), borders, and elevation usage that are subtle and consistent.
+
+## State completeness (MUST)
+
+- MUST implement explicit states for loading, empty, error, success, disabled, and read-only where applicable.
+- MUST show inline validation guidance near fields, not only generic page-level errors.
+- MUST avoid disruptive layout shifts during data loading and mutation feedback.
+
+## Accessibility and interaction quality (MUST)
+
+- MUST support keyboard navigation and visible focus styles for interactive controls.
+- MUST provide semantic labels and accessible names for form fields and actions.
+- MUST maintain color contrast and clickable target sizes appropriate for production use.
+- MUST ensure destructive actions are visually distinct and include confirmation where risk is high.
+
+## Prohibitions (MUST NOT)
+
+- MUST NOT ship pages with default unstyled browser controls as final UI.
+- MUST NOT rely on one-off per-page styling that bypasses the shared design system.
+- MUST NOT hardcode app-domain forms/fields/nav/actions; dynamic schema + permission behavior still applies per `.md/CURSOR.md`.
+
+## Definition of done for UI
+
+- Before claiming frontend completion, agent output MUST include a checklist status table for all applicable items in `.md/UMA-COMPLIANCE-CHECKLIST.md`, including the UI quality section.
